@@ -12,11 +12,11 @@
 
 /** Marca oficial com letras azuis, fundo transparente — usada em fundos claros. */
 export const LOGO_COLOR_URL =
-  "/images/7ac4fcf023.png";
+  "/images/logo-sstek-azul.png";
 
 /** A mesma marca com letras brancas e o detalhe verde no K — usada em fundos escuros. */
 export const LOGO_WHITE_URL =
-  "/images/0a7be1687a.png";
+  "/images/logo-sstek-branca.png";
 
 export const LOGO_ALT = "SSTEK — Gestão Inteligente em Segurança do Trabalho";
 export const LOGO_TITLE = "SSTEK — Sistema de Gestão de Segurança do Trabalho";
