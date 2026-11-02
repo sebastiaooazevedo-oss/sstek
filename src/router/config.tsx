@@ -1,7 +1,7 @@
-import { lazy, Suspense, type ComponentType, type LazyExoticComponent, type ReactNode } from "react";
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
 import { Navigate, type RouteObject } from "react-router-dom";
 import { appModules } from "@/core/modules/registry";
-import type { PageLoader } from "@/core/modules/types";
+import type { ModuleRoute, PageLoader } from "@/core/modules/types";
 import AppLayout from "../pages/app/layout";
 import AppLoadingScreen from "../pages/app/components/AppLoadingScreen";
 import ModulePlaceholder from "../pages/app/components/ModulePlaceholder";
@@ -17,45 +17,44 @@ import NotFound from "../pages/NotFound";
  */
 
 const lazyCache = new Map<PageLoader, LazyExoticComponent<ComponentType>>();
-function page(load: PageLoader, fallback: ReactNode): ReactNode {
+
+/** Tela carregada sob demanda, com a tela de "Carregando…" enquanto baixa. */
+function LazyPage({ load, variant = "panel" }: { load: PageLoader; variant?: "panel" | "full" }) {
   let Component = lazyCache.get(load);
   if (!Component) {
     Component = lazy(load);
     lazyCache.set(load, Component);
   }
   return (
-    <Suspense fallback={fallback}>
+    <Suspense fallback={<AppLoadingScreen variant={variant} />}>
       <Component />
     </Suspense>
   );
 }
 
-const panelFallback = <AppLoadingScreen variant="panel" />;
-const fullFallback = <AppLoadingScreen />;
+/** Elemento de uma rota de módulo: tela, redirecionamento ou página "em breve". */
+function ModuleRouteElement({ route }: { route: ModuleRoute }) {
+  if (route.redirectTo) return <Navigate to={route.redirectTo} replace />;
+  if (route.load) return <LazyPage load={route.load} />;
+  return <ModulePlaceholder />;
+}
 
 const appChildren: RouteObject[] = appModules.flatMap((module) =>
-  module.routes.map<RouteObject>((route) => {
-    const element = route.redirectTo ? (
-      <Navigate to={route.redirectTo} replace />
-    ) : route.load ? (
-      page(route.load, panelFallback)
-    ) : (
-      <ModulePlaceholder />
-    );
-    return route.path === "" ? { index: true, element } : { path: route.path, element };
-  })
+  module.routes.map<RouteObject>((route) =>
+    route.path === ""
+      ? { index: true, element: <ModuleRouteElement route={route} /> }
+      : { path: route.path, element: <ModuleRouteElement route={route} /> }
+  )
 );
 
-const publicPage = (load: PageLoader) => page(load, fullFallback);
-
 const routes: RouteObject[] = [
-  { path: "/", element: publicPage(() => import("../pages/home/page")) },
-  { path: "/login", element: publicPage(() => import("../pages/login/page")) },
-  { path: "/redefinir-senha", element: publicPage(() => import("../pages/redefinir-senha/page")) },
-  { path: "/primeiro-acesso", element: publicPage(() => import("../pages/primeiro-acesso/page")) },
-  { path: "/fiscalizacao/:id", element: publicPage(() => import("../pages/fiscalizacao/page")) },
-  { path: "/validar/:token", element: publicPage(() => import("../pages/validar/page")) },
-  { path: "/votacao/:token", element: publicPage(() => import("../pages/votacao/page")) },
+  { path: "/", element: <LazyPage variant="full" load={() => import("../pages/home/page")} /> },
+  { path: "/login", element: <LazyPage variant="full" load={() => import("../pages/login/page")} /> },
+  { path: "/redefinir-senha", element: <LazyPage variant="full" load={() => import("../pages/redefinir-senha/page")} /> },
+  { path: "/primeiro-acesso", element: <LazyPage variant="full" load={() => import("../pages/primeiro-acesso/page")} /> },
+  { path: "/fiscalizacao/:id", element: <LazyPage variant="full" load={() => import("../pages/fiscalizacao/page")} /> },
+  { path: "/validar/:token", element: <LazyPage variant="full" load={() => import("../pages/validar/page")} /> },
+  { path: "/votacao/:token", element: <LazyPage variant="full" load={() => import("../pages/votacao/page")} /> },
   {
     path: "/app",
     element: <AppLayout />,
