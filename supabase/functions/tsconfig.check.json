@@ -1,0 +1,17 @@
+{
+  "//": "Checagem de tipos das funções de servidor (Deno) usando o TypeScript do projeto. Uso: npm run check:functions",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "lib": ["ES2022", "DOM"],
+    "baseUrl": "../..",
+    "paths": { "https://esm.sh/@supabase/supabase-js@2": ["node_modules/@supabase/supabase-js"] },
+    "types": []
+  },
+  "files": ["deno-shim.d.ts", "platform-admin/index.ts", "_shared/onboarding.ts"]
+}

@@ -81,8 +81,11 @@ export default function ModulesPanel() {
       <div className="flex flex-col gap-3 rounded-lg border border-background-200 bg-background-50 px-4 py-3.5 md:flex-row md:items-center md:justify-between">
         <p className="flex items-start gap-2 text-xs leading-relaxed text-foreground-600">
           <i className="ri-information-line mt-0.5 text-sm text-primary-600"></i>
-          Módulos habilitados aqui aparecem para as empresas. O administrador do cliente não pode liberar módulo por
-          conta própria.
+          <span>
+            <strong>Chave geral da plataforma.</strong> Desligar aqui desliga o módulo para <strong>todas</strong> as empresas
+            (ex.: manutenção). O que cada empresa contratou é definido em Empresas → <strong>Módulos</strong>. O administrador
+            do cliente não pode liberar módulo por conta própria.
+          </span>
         </p>
         <div className="flex items-center gap-2">
           <span className="whitespace-nowrap rounded-full bg-secondary-100 px-2.5 py-1 text-[11px] font-semibold text-secondary-900">

@@ -32,6 +32,7 @@
     "noUncheckedSideEffectImports": false,
     "paths": {
       "@/*": ["./src/*"],
+      "@shared/*": ["./supabase/functions/_shared/*"],
     }
   },
   "include": ["src", "vite-env.d.ts"]

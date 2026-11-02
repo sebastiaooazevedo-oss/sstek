@@ -4,6 +4,7 @@ import AppSidebar from "@/pages/app/components/AppSidebar";
 import AppTopbar from "@/pages/app/components/AppTopbar";
 import DailyMoodGate from "@/pages/app/components/DailyMoodGate";
 import TenantGate from "@/pages/app/components/TenantGate";
+import AddressGate from "@/pages/app/components/AddressGate";
 import SessionGate from "@/pages/app/components/SessionGate";
 import PermissionGuard from "@/pages/app/components/PermissionGuard";
 import ModuleGuard from "@/pages/app/components/ModuleGuard";
@@ -81,10 +82,12 @@ export default function AppLayout() {
         {isPlatformArea ? (
           shell
         ) : (
-          <TenantGate subdomain={session.subdomain}>
-            {shell}
-            <DailyMoodGate />
-          </TenantGate>
+          <AddressGate sessionSubdomain={session.subdomain}>
+            <TenantGate subdomain={session.subdomain}>
+              {shell}
+              <DailyMoodGate />
+            </TenantGate>
+          </AddressGate>
         )}
       </SessionGate>
     </AppSessionContext.Provider>

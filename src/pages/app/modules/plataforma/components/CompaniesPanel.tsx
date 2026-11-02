@@ -7,6 +7,8 @@ import {
 } from "@/pages/app/modules/plataforma/platformApi";
 import CompanyFormModal from "@/pages/app/modules/plataforma/components/CompanyFormModal";
 import CompanyAdminsModal from "@/pages/app/modules/plataforma/components/CompanyAdminsModal";
+import OnboardingWizard from "@/pages/app/modules/plataforma/components/OnboardingWizard";
+import CompanyModulesModal from "@/pages/app/modules/plataforma/components/CompanyModulesModal";
 import { tenantHost } from "@/core/domain";
 
 interface CompaniesPanelProps {
@@ -39,6 +41,25 @@ export default function CompaniesPanel({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [modulesFor, setModulesFor] = useState<PlatformCompany | null>(null);
+  const [linkFor, setLinkFor] = useState<PlatformCompany | null>(null);
+  const [accessLink, setAccessLink] = useState<{ link: string; email: string } | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const openAccessLink = async (company: PlatformCompany) => {
+    setLinkFor(company);
+    setAccessLink(null);
+    setLinkError(null);
+    setLinkCopied(false);
+    try {
+      const r = await platformApi.adminAccessLink(company.id);
+      setAccessLink({ link: r.link, email: r.email });
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Não foi possível gerar o link.");
+    }
+  };
   const [editing, setEditing] = useState<PlatformCompany | null>(null);
   const [adminsFor, setAdminsFor] = useState<PlatformCompany | null>(null);
   const [suspendFor, setSuspendFor] = useState<PlatformCompany | null>(null);
@@ -184,10 +205,7 @@ export default function CompaniesPanel({
         </div>
         <button
           type="button"
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
+          onClick={() => setWizardOpen(true)}
           className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary-500 px-4 py-2.5 text-sm font-semibold text-background-50 transition-colors hover:bg-primary-600"
         >
           <i className="ri-add-line"></i>
@@ -265,6 +283,22 @@ export default function CompaniesPanel({
                   </button>
                   <button
                     type="button"
+                    onClick={() => setModulesFor(company)}
+                    className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-background-300 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100"
+                  >
+                    <i className="ri-apps-2-line"></i>
+                    Módulos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openAccessLink(company)}
+                    className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-background-300 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100"
+                  >
+                    <i className="ri-links-line"></i>
+                    Link de acesso
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setAdminsFor(company)}
                     className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-background-300 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100"
                   >
@@ -318,6 +352,69 @@ export default function CompaniesPanel({
           company={editing}
           admins={admins}
           onClose={() => setFormOpen(false)}
+          onSaved={async (message) => {
+            notify(message);
+            await onRefresh();
+          }}
+        />
+      )}
+
+      {wizardOpen && (
+        <OnboardingWizard
+          open={wizardOpen}
+          onClose={() => setWizardOpen(false)}
+          onCreated={async (message) => {
+            notify(message);
+            await onRefresh();
+          }}
+        />
+      )}
+
+      {linkFor && (
+        <Modal
+          open
+          onClose={() => setLinkFor(null)}
+          title="Link de acesso do administrador"
+          subtitle={`${linkFor.name} · ${tenantHost(linkFor.subdomain)}`}
+          icon="ri-links-line"
+          size="lg"
+          footer={
+            <ModalButton variant="ghost" onClick={() => setLinkFor(null)}>
+              Fechar
+            </ModalButton>
+          }
+        >
+          {!accessLink && !linkError && <p className="text-sm text-foreground-500">Gerando link…</p>}
+          {linkError && <p className="text-sm font-medium text-accent-700">{linkError}</p>}
+          {accessLink && (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs leading-relaxed text-foreground-600">
+                Envie para <strong>{accessLink.email}</strong>. Ao abrir, a pessoa cria uma nova senha. O link vale por tempo
+                limitado e só pode ser usado uma vez. A geração fica registrada na auditoria.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input readOnly value={accessLink.link} className={`${inputClass} font-mono text-xs`} onFocus={(e) => e.target.select()} />
+                <ModalButton
+                  icon={linkCopied ? "ri-check-line" : "ri-file-copy-line"}
+                  onClick={() => {
+                    navigator.clipboard
+                      .writeText(accessLink.link)
+                      .then(() => setLinkCopied(true))
+                      .catch(() => setLinkCopied(false));
+                  }}
+                >
+                  {linkCopied ? "Copiado" : "Copiar"}
+                </ModalButton>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {modulesFor && (
+        <CompanyModulesModal
+          company={modulesFor}
+          onClose={() => setModulesFor(null)}
           onSaved={async (message) => {
             notify(message);
             await onRefresh();

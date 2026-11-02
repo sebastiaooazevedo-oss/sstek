@@ -1,4 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  RESERVED_SUBDOMAINS,
+  normalizeSubdomain,
+  type OnboardingInput,
+  sanitizeModules,
+  validateOnboarding,
+  validateSubdomain,
+} from "../_shared/onboarding.ts";
+
+/** Domínio raiz da plataforma (secret PLATFORM_ROOT_DOMAIN no Supabase). */
+const ROOT_DOMAIN = (Deno.env.get("PLATFORM_ROOT_DOMAIN") ?? "sstek.com.br").trim().toLowerCase();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,29 +17,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const RESERVED_SUBDOMAINS = new Set([
-  "admin", "www", "api", "app", "painel", "sistema", "suporte", "sstek",
-  "mail", "status", "test", "dev", "staging",
-]);
-
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function normalizeSubdomain(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
-}
-
-function validateSubdomain(value: string): string | null {
-  if (value.length < 3 || value.length > 30) return "O subdominio deve ter entre 3 e 30 caracteres.";
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(value)) {
-    return "Use apenas letras minusculas, numeros e hifen (sem comecar ou terminar com hifen).";
-  }
-  if (RESERVED_SUBDOMAINS.has(value)) return "Este subdominio e reservado para a administracao da plataforma.";
-  return null;
 }
 
 function passwordProblem(password: string, email: string): string | null {
@@ -47,7 +40,7 @@ function validateDomain(value: string): string | null {
   const clean = value.trim().toLowerCase();
   if (clean.length < 4 || clean.length > 120) return "Informe um dominio valido.";
   if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])$/.test(clean) || !clean.includes(".")) {
-    return "Informe um dominio valido (ex.: empresa.sstek.com).";
+    return `Informe um dominio valido (ex.: empresa.${ROOT_DOMAIN}).`;
   }
   return null;
 }
@@ -459,7 +452,7 @@ Deno.serve(async (req: Request) => {
         if (error || !data) throw new Error(error?.message ?? "Nao foi possivel cadastrar a empresa.");
         await admin.from("company_domains").insert({
           company_id: data.id,
-          domain: `${subdomain}.sstek.com`,
+          domain: `${subdomain}.${ROOT_DOMAIN}`,
           kind: "subdomain",
           is_primary: true,
           dns_status: "pending",
@@ -558,7 +551,7 @@ Deno.serve(async (req: Request) => {
       const payload = {
         company_id: companyId,
         domain: rawDomain,
-        kind: rawDomain.endsWith(".sstek.com") ? "subdomain" : "custom",
+        kind: rawDomain.endsWith(`.${ROOT_DOMAIN}`) ? "subdomain" : "custom",
         is_primary: Boolean(body.isPrimary),
         dns_status: String(body.dnsStatus ?? "pending"),
         https_status: String(body.httpsStatus ?? "pending"),
@@ -1641,6 +1634,309 @@ Deno.serve(async (req: Request) => {
         counts,
         companies: companies ?? [],
       });
+    }
+
+    // -----------------------------------------------------------------
+    // Catálogo de empresas e assistente de nova empresa
+    // -----------------------------------------------------------------
+
+    if (action === "check_subdomain") {
+      const subdomain = normalizeSubdomain(body.subdomain);
+      const problem = validateSubdomain(subdomain);
+      if (problem) return jsonResponse({ ok: true, subdomain, available: false, detail: problem });
+      const { data: taken } = await admin.from("companies").select("id").ilike("subdomain", subdomain).maybeSingle();
+      return jsonResponse({
+        ok: true,
+        subdomain,
+        host: `${subdomain}.${ROOT_DOMAIN}`,
+        available: !taken,
+        detail: taken ? "Este subdomínio já está em uso por outra empresa." : "Disponível.",
+      });
+    }
+
+    if (action === "company_modules_get") {
+      const companyId = String(body.companyId ?? "");
+      const { data, error } = await admin
+        .from("companies")
+        .select("id, name, enabled_modules")
+        .eq("id", companyId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) return jsonResponse({ ok: false, error: "COMPANY_NOT_FOUND" }, 404);
+      return jsonResponse({ ok: true, modules: data.enabled_modules ?? {} });
+    }
+
+    if (action === "company_modules_save") {
+      const companyId = String(body.companyId ?? "");
+      const company = await companyById(companyId);
+      if (!company) return jsonResponse({ ok: false, error: "COMPANY_NOT_FOUND" }, 404);
+      const modules = sanitizeModules(body.modules);
+      const { error } = await admin.from("companies").update({ enabled_modules: modules }).eq("id", companyId);
+      if (error) throw new Error(error.message);
+      await audit({
+        action: "company_modules_saved",
+        companyId,
+        companyName: String(company.name),
+        detail: { disabled: Object.entries(modules).filter(([, on]) => !on).map(([key]) => key) },
+      });
+      return jsonResponse({ ok: true, detail: "Módulos da empresa salvos." });
+    }
+
+    // Novo link de acesso para o administrador principal (convite expirado,
+    // senha esquecida). O link leva à tela de criar/redefinir senha da empresa.
+    if (action === "admin_access_link") {
+      const companyId = String(body.companyId ?? "");
+      const company = await companyById(companyId);
+      if (!company) return jsonResponse({ ok: false, error: "COMPANY_NOT_FOUND" }, 404);
+      const { data: primary } = await admin
+        .from("profiles")
+        .select("id, email, auth_user_id")
+        .eq("company_id", companyId)
+        .eq("is_primary_admin", true)
+        .maybeSingle();
+      if (!primary?.email || !primary.auth_user_id) {
+        return jsonResponse({
+          ok: false,
+          error: "NO_PRIMARY_LOGIN",
+          detail: "A empresa não tem administrador principal com conta de acesso. Cadastre-o em Editar.",
+        });
+      }
+      const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+        type: "recovery",
+        email: String(primary.email),
+        options: { redirectTo: `https://${String(company.subdomain)}.${ROOT_DOMAIN}/redefinir-senha` },
+      });
+      if (linkError || !link?.properties?.action_link) {
+        return jsonResponse({ ok: false, error: "LINK_FAILED", detail: "Não foi possível gerar o link agora. Tente novamente." });
+      }
+      await audit({
+        action: "admin_access_link_generated",
+        companyId,
+        companyName: String(company.name),
+        targetUserId: String(primary.auth_user_id),
+        detail: { email: primary.email },
+      });
+      return jsonResponse({ ok: true, link: link.properties.action_link, email: primary.email });
+    }
+
+    if (action === "onboard_company") {
+      const parsed = validateOnboarding(body.payload, passwordProblem);
+      if (parsed.ok === false) {
+        return jsonResponse({ ok: false, error: "INVALID_FIELDS", detail: "Revise os campos destacados.", fields: parsed.errors });
+      }
+      const input = (parsed as { ok: true; value: OnboardingInput }).value;
+
+      // Conflitos que só o banco sabe responder
+      const { data: subTaken } = await admin.from("companies").select("id").ilike("subdomain", input.company.subdomain).maybeSingle();
+      if (subTaken) {
+        return jsonResponse({ ok: false, error: "INVALID_FIELDS", detail: "Revise os campos destacados.", fields: { "company.subdomain": "Este subdomínio já está em uso." } });
+      }
+      const { data: cnpjTaken } = await admin.from("companies").select("id, name").eq("cnpj", input.company.cnpj).maybeSingle();
+      if (cnpjTaken) {
+        return jsonResponse({
+          ok: false,
+          error: "INVALID_FIELDS",
+          detail: "Revise os campos destacados.",
+          fields: { "company.cnpj": `Este CNPJ já está cadastrado (${cnpjTaken.name}).` },
+        });
+      }
+      const { data: emailTaken } = await admin.from("profiles").select("id").ilike("email", input.admin.email).maybeSingle();
+      if (emailTaken) {
+        return jsonResponse({
+          ok: false,
+          error: "INVALID_FIELDS",
+          detail: "Revise os campos destacados.",
+          fields: { "admin.email": "Este e-mail já está vinculado a outro usuário da plataforma." },
+        });
+      }
+
+      // Cada passo registra como desfazer. Se algo falhar no meio, desfaz tudo
+      // na ordem inversa: nada de empresa "pela metade".
+      const undo: Array<() => PromiseLike<unknown>> = [];
+      const rollback = async () => {
+        for (const step of undo.reverse()) {
+          try {
+            await step();
+          } catch {
+            /* segue desfazendo o restante */
+          }
+        }
+      };
+
+      try {
+        const now = new Date().toISOString();
+        const { data: company, error: companyError } = await admin
+          .from("companies")
+          .insert({
+            name: input.company.name,
+            legal_name: input.company.legalName,
+            cnpj: input.company.cnpj,
+            subdomain: input.company.subdomain,
+            plan: input.company.plan,
+            notes: input.company.notes,
+            status: "active",
+            created_by: actor.id,
+            enabled_modules: input.modules,
+            onboarding: { template: input.template, started_at: now, steps: {} },
+          })
+          .select("id")
+          .single();
+        if (companyError || !company) throw new Error(companyError?.message ?? "Falha ao criar a empresa.");
+        const companyId = String(company.id);
+        undo.push(() => admin.from("companies").delete().eq("id", companyId));
+
+        const steps: Record<string, boolean> = {};
+
+        const { error: domainError } = await admin.from("company_domains").insert({
+          company_id: companyId,
+          domain: `${input.company.subdomain}.${ROOT_DOMAIN}`,
+          kind: "subdomain",
+          is_primary: true,
+          // O curinga *.dominio já atende todos os subdomínios: nada a configurar por empresa.
+          dns_status: "configured",
+          https_status: "configured",
+          notes: "Criado pelo assistente de nova empresa (coberto pelo domínio curinga).",
+        });
+        if (domainError) throw new Error(domainError.message);
+        undo.push(() => admin.from("company_domains").delete().eq("company_id", companyId));
+        steps.domain = true;
+
+        const { error: settingsError } = await admin.from("company_settings").upsert(
+          {
+            company_id: companyId,
+            company_legal_name: input.company.legalName,
+            company_cnpj: input.company.cnpj,
+            technical_responsible: input.settings.technicalResponsible,
+            technical_registration: input.settings.technicalRegistration,
+            sesmt_phone: input.settings.sesmtPhone,
+          },
+          { onConflict: "company_id" },
+        );
+        if (settingsError) throw new Error(settingsError.message);
+        undo.push(() => admin.from("company_settings").delete().eq("company_id", companyId));
+        steps.settings = true;
+
+        const { error: estError } = await admin.from("establishments").insert({
+          company_id: companyId,
+          code: input.establishment.code,
+          name: input.establishment.name,
+          cnpj: input.company.cnpj,
+          city: input.establishment.city,
+          state: input.establishment.state,
+          risk_grade: input.establishment.riskGrade,
+        });
+        if (estError) throw new Error(estError.message);
+        undo.push(() => admin.from("establishments").delete().eq("company_id", companyId));
+        steps.establishment = true;
+
+        if (input.profiles.length) {
+          const { error: profError } = await admin.from("company_access_profiles").insert(
+            input.profiles.map((p) => ({
+              company_id: companyId,
+              name: p.name,
+              description: p.description,
+              icon: p.icon,
+              permissions: p.permissions,
+            })),
+          );
+          if (profError) throw new Error(profError.message);
+          undo.push(() => admin.from("company_access_profiles").delete().eq("company_id", companyId));
+          steps.profiles = true;
+        }
+
+        const { error: licenseError } = await admin.from("company_licenses").upsert(
+          {
+            company_id: companyId,
+            plan: input.company.plan,
+            seats: input.license.seats,
+            monthly_value: input.license.monthlyValue,
+            billing_cycle: input.license.billingCycle,
+            status: "active",
+            started_at: now.slice(0, 10),
+            updated_at: now,
+          },
+          { onConflict: "company_id" },
+        );
+        if (licenseError) throw new Error(licenseError.message);
+        undo.push(() => admin.from("company_licenses").delete().eq("company_id", companyId));
+        steps.license = true;
+
+        // Administrador principal: convite (padrão) ou senha definida agora.
+        let authUserId: string | null = null;
+        let inviteLink: string | null = null;
+        if (input.admin.mode === "password") {
+          const created = await createLoginAccount(input.admin.email, input.admin.password, input.admin.name);
+          if (created.response) {
+            await rollback();
+            return created.response;
+          }
+          authUserId = created.userId;
+        } else {
+          const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+            type: "invite",
+            email: input.admin.email,
+            options: {
+              data: { name: input.admin.name },
+              redirectTo: `https://${input.company.subdomain}.${ROOT_DOMAIN}/redefinir-senha`,
+            },
+          });
+          if (linkError || !link?.user) throw new Error(linkError?.message ?? "Falha ao gerar o convite.");
+          authUserId = link.user.id;
+          inviteLink = link.properties?.action_link ?? null;
+        }
+        if (authUserId) {
+          const uid = authUserId;
+          undo.push(() => admin.auth.admin.deleteUser(uid));
+        }
+
+        const { error: adminError } = await admin.from("profiles").insert({
+          company_id: companyId,
+          name: input.admin.name,
+          email: input.admin.email,
+          phone: input.admin.phone,
+          role: "admin",
+          status: "active",
+          is_primary_admin: true,
+          auth_user_id: authUserId,
+        });
+        if (adminError) throw new Error(adminError.message);
+        steps.admin = true;
+
+        await admin
+          .from("companies")
+          .update({ onboarding: { template: input.template, started_at: now, steps, admin_mode: input.admin.mode } })
+          .eq("id", companyId);
+
+        await audit({
+          action: "company_onboarded",
+          companyId,
+          companyName: input.company.name,
+          detail: {
+            subdomain: input.company.subdomain,
+            plan: input.company.plan,
+            template: input.template,
+            modulesOff: Object.entries(input.modules).filter(([, on]) => !on).map(([k]) => k),
+            profiles: input.profiles.map((p) => p.name),
+            adminEmail: input.admin.email,
+            adminMode: input.admin.mode,
+          },
+        });
+
+        return jsonResponse({
+          ok: true,
+          companyId,
+          host: `${input.company.subdomain}.${ROOT_DOMAIN}`,
+          inviteLink,
+          detail: "Empresa criada e pronta para o primeiro acesso.",
+        });
+      } catch (err) {
+        await rollback();
+        return jsonResponse({
+          ok: false,
+          error: "ONBOARDING_FAILED",
+          detail: `A empresa não foi criada e nada ficou gravado. Motivo: ${err instanceof Error ? err.message : "falha inesperada"}.`,
+        });
+      }
     }
 
     return jsonResponse({ ok: false, error: "UNKNOWN_ACTION" }, 400);

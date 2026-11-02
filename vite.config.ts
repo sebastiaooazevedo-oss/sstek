@@ -72,6 +72,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": `${import.meta.dirname}/src`,
+      // Regras puras compartilhadas com as funções de servidor (mesma validação na tela e no servidor).
+      "@shared": `${import.meta.dirname}/supabase/functions/_shared`,
     },
   },
   server: {
@@ -79,7 +81,7 @@ export default defineConfig({
     host: "0.0.0.0",
   },
   test: {
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "supabase/functions/**/*.test.ts"],
     environment: "node",
   },
 });

@@ -254,6 +254,33 @@ export interface PlatformSystemLogsPayload {
   counts: { total: number; created: number; deleted: number; secret: number };
 }
 
+export interface SubdomainCheck {
+  ok: boolean;
+  subdomain: string;
+  host?: string;
+  available: boolean;
+  detail: string;
+}
+
+export interface OnboardingPayload {
+  template: string;
+  company: { name: string; legalName: string; cnpj: string; subdomain: string; plan: string; notes?: string };
+  modules: Record<string, boolean>;
+  establishment: { name: string; code: string; city?: string; state?: string; riskGrade?: string };
+  settings: { technicalResponsible: string; technicalRegistration: string; sesmtPhone: string };
+  profiles: { name: string; description: string; icon: string; permissions: Record<string, boolean> }[];
+  admin: { name: string; email: string; phone?: string; mode: "invite" | "password"; password?: string };
+  license: { monthlyValue: number; seats: number; billingCycle: "monthly" | "yearly" };
+}
+
+export interface OnboardingResponse {
+  ok: boolean;
+  companyId: string;
+  host: string;
+  inviteLink: string | null;
+  detail: string;
+}
+
 interface ApiResponse {
   ok?: boolean;
   error?: string;
@@ -262,10 +289,13 @@ interface ApiResponse {
 
 export class PlatformApiError extends Error {
   code: string;
-  constructor(message: string, code = "UNKNOWN") {
+  /** Erros por campo (ex.: { "company.cnpj": "CNPJ inválido." }), quando o servidor informar. */
+  fields: Record<string, string>;
+  constructor(message: string, code = "UNKNOWN", fields: Record<string, string> = {}) {
     super(message);
     this.name = "PlatformApiError";
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -293,7 +323,8 @@ async function invoke<T extends ApiResponse>(action: string, payload: Record<str
 
   const response = (data ?? {}) as T;
   if (response.ok === false) {
-    throw new PlatformApiError(response.detail || response.error || "Operação não concluída.", response.error);
+    const fields = (response as { fields?: Record<string, string> }).fields ?? {};
+    throw new PlatformApiError(response.detail || response.error || "Operação não concluída.", response.error, fields);
   }
   return response;
 }
@@ -328,6 +359,20 @@ export const platformApi = {
   modulesGet: () => invoke<{ ok: boolean; modules: Record<string, boolean>; updatedAt: string | null }>("modules_get"),
   saveModules: (modules: Record<string, boolean>) =>
     invoke<ApiResponse & { detail?: string }>("modules_save", { modules }),
+  /** Confere se um subdomínio é válido e está livre. */
+  checkSubdomain: (subdomain: string) =>
+    invoke<SubdomainCheck>("check_subdomain", { subdomain }),
+  /** Módulos contratados por UMA empresa (liga/desliga do plano). */
+  companyModulesGet: (companyId: string) =>
+    invoke<{ ok: boolean; modules: Record<string, boolean> }>("company_modules_get", { companyId }),
+  companyModulesSave: (companyId: string, modules: Record<string, boolean>) =>
+    invoke<ApiResponse & { detail?: string }>("company_modules_save", { companyId, modules }),
+  /** Gera um novo link para o administrador principal criar/redefinir a senha. */
+  adminAccessLink: (companyId: string) =>
+    invoke<{ ok: boolean; link: string; email: string }>("admin_access_link", { companyId }),
+  /** Assistente de nova empresa: cria tudo de uma vez ou nada. */
+  onboardCompany: (payload: OnboardingPayload) =>
+    invoke<OnboardingResponse>("onboard_company", { payload }),
   licenses: () => invoke<{ ok: boolean; licenses: PlatformLicenseRow[] }>("licenses_overview"),
   saveLicense: (input: Record<string, unknown>) =>
     invoke<ApiResponse & { detail?: string }>("license_save", input),
