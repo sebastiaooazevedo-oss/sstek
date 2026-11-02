@@ -380,23 +380,35 @@ interface NrsRow {
 }
 
 /**
- * Quadro I da NR-5: nº de efetivos (titulares) e suplentes por parte, cruzando
- * a faixa de empregados do estabelecimento com o grau de risco da atividade.
- * Faixas com "null" indicam dispensa de CIPA (trabalhador designado).
+ * Quadro I da NR-5 (redação da Portaria MTP nº 422/2021): nº de efetivos
+ * (titulares) e suplentes dos representantes dos empregados, cruzando a faixa
+ * de empregados do estabelecimento com o grau de risco da atividade.
+ * Faixas com "null" indicam dispensa de CIPA (nomeação de representante, item 5.4.13).
+ *
+ * Exigência de CIPA: grau 1 a partir de 81 empregados; grau 2 a partir de 51;
+ * graus 3 e 4 a partir de 20.
+ *
+ * ATENÇÃO — conferir contra o texto publicado no DOU antes de uso em produção:
+ * a célula "grau 2 / 51 a 80 / suplentes" está como 1 por inferência.
  */
 const NRS_TABLE: NrsRow[] = [
   { min: 0, max: 19, label: "0 a 19 empregados", seats: { 1: null, 2: null, 3: null, 4: null } },
   { min: 20, max: 29, label: "20 a 29 empregados", seats: { 1: null, 2: null, 3: [1, 1], 4: [1, 1] } },
-  { min: 30, max: 50, label: "30 a 50 empregados", seats: { 1: null, 2: [1, 1], 3: [1, 1], 4: [2, 1] } },
-  { min: 51, max: 80, label: "51 a 80 empregados", seats: { 1: null, 2: [2, 1], 3: [2, 2], 4: [3, 2] } },
-  { min: 81, max: 100, label: "81 a 100 empregados", seats: { 1: [2, 1], 2: [2, 2], 3: [3, 2], 4: [4, 3] } },
-  { min: 101, max: 125, label: "101 a 125 empregados", seats: { 1: [3, 2], 2: [3, 2], 3: [4, 3], 4: [5, 4] } },
-  { min: 126, max: 140, label: "126 a 140 empregados", seats: { 1: [3, 2], 2: [4, 3], 3: [5, 4], 4: [6, 5] } },
-  { min: 141, max: 300, label: "141 a 300 empregados", seats: { 1: [4, 3], 2: [5, 4], 3: [6, 5], 4: [7, 5] } },
-  { min: 301, max: 500, label: "301 a 500 empregados", seats: { 1: [5, 4], 2: [6, 5], 3: [7, 5], 4: [8, 6] } },
-  { min: 501, max: 1000, label: "501 a 1.000 empregados", seats: { 1: [6, 5], 2: [7, 5], 3: [8, 6], 4: [9, 7] } },
-  { min: 1001, max: Number.POSITIVE_INFINITY, label: "acima de 1.000 empregados", seats: { 1: [9, 7], 2: [10, 8], 3: [11, 8], 4: [12, 9] } },
+  { min: 30, max: 50, label: "30 a 50 empregados", seats: { 1: null, 2: null, 3: [1, 1], 4: [2, 1] } },
+  { min: 51, max: 80, label: "51 a 80 empregados", seats: { 1: null, 2: [1, 1], 3: [2, 1], 4: [3, 2] } },
+  { min: 81, max: 100, label: "81 a 100 empregados", seats: { 1: [1, 1], 2: [1, 1], 3: [2, 1], 4: [3, 2] } },
+  { min: 101, max: 120, label: "101 a 120 empregados", seats: { 1: [1, 1], 2: [2, 1], 3: [2, 1], 4: [4, 2] } },
+  { min: 121, max: 140, label: "121 a 140 empregados", seats: { 1: [1, 1], 2: [2, 1], 3: [3, 2], 4: [4, 2] } },
+  { min: 141, max: 300, label: "141 a 300 empregados", seats: { 1: [1, 1], 2: [3, 2], 3: [4, 2], 4: [4, 3] } },
+  { min: 301, max: 500, label: "301 a 500 empregados", seats: { 1: [2, 2], 2: [4, 3], 3: [5, 4], 4: [5, 4] } },
+  { min: 501, max: 1000, label: "501 a 1.000 empregados", seats: { 1: [4, 3], 2: [5, 4], 3: [6, 4], 4: [6, 5] } },
+  { min: 1001, max: 2500, label: "1.001 a 2.500 empregados", seats: { 1: [5, 4], 2: [6, 5], 3: [8, 6], 4: [9, 7] } },
+  { min: 2501, max: 5000, label: "2.501 a 5.000 empregados", seats: { 1: [6, 5], 2: [8, 6], 3: [10, 8], 4: [11, 8] } },
+  { min: 5001, max: 10000, label: "5.001 a 10.000 empregados", seats: { 1: [8, 6], 2: [10, 8], 3: [12, 8], 4: [13, 10] } },
 ];
+
+/** Acréscimo por grupo de 2.500 empregados acima de 10.000 (última linha do Quadro I). */
+const NRS_EXTRA_PER_2500: Record<1 | 2 | 3 | 4, [number, number]> = { 1: [1, 1], 2: [1, 1], 3: [2, 2], 4: [2, 2] };
 
 /**
  * Calcula o dimensionamento sugerido da CIPA pelo Quadro I da NR-5 a partir
@@ -408,13 +420,29 @@ const NRS_TABLE: NrsRow[] = [
 export function nrsDimensioning(employeesCount: number, riskGrade: string): NrsDimensioning {
   const grade = parseRiskGrade(riskGrade);
   const count = Math.max(0, Math.floor(employeesCount || 0));
-  const row = NRS_TABLE.find((r) => count >= r.min && count <= r.max) || NRS_TABLE[NRS_TABLE.length - 1];
+  const group = `Grau de risco ${grade}`;
+
+  if (count > 10000) {
+    const last = NRS_TABLE[NRS_TABLE.length - 1].seats[grade] as [number, number];
+    // O Quadro I diz "para cada grupo de 2.500" (sem "ou fração"): só grupos completos contam.
+    const groups = Math.floor((count - 10000) / 2500);
+    const [extraT, extraS] = NRS_EXTRA_PER_2500[grade];
+    return {
+      titulares: last[0] + groups * extraT,
+      suplentes: last[1] + groups * extraS,
+      required: true,
+      group,
+      rangeLabel: "acima de 10.000 empregados",
+    };
+  }
+
+  const row = NRS_TABLE.find((r) => count >= r.min && count <= r.max) || NRS_TABLE[0];
   const seats = row.seats[grade];
   return {
     titulares: seats ? seats[0] : 0,
     suplentes: seats ? seats[1] : 0,
     required: seats !== null,
-    group: `Grau de risco ${grade}`,
+    group,
     rangeLabel: row.label,
   };
 }
