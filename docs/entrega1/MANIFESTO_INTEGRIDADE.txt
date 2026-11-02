@@ -1,0 +1,97 @@
+MANIFESTO DE INTEGRIDADE — ENTREGA 1
+=======================================================================
+Revisão: v245 (auditoria preventiva de segurança)   Data: 2026-11-01
+Pacote : docs/entrega1/ENTREGA1_PACOTE_COMPLETO.txt
+
+STATUS: NÃO GERADO — SHA-256 NÃO CALCULADO NESTA SESSÃO
+=======================================================================
+
+Este arquivo é a saída de:
+
+    python3 docs/entrega1/verify_package.py
+
+Ele é sobrescrito integralmente na primeira execução com sucesso e passa a
+conter, por bloco do pacote:
+
+    # | caminho | bytes origem | sha256 origem | bytes no TXT | sha256 no TXT | resultado
+
+
+1. POR QUE NÃO FOI GERADO
+-----------------------------------------------------------------------
+O verificador existe e está pronto (docs/entrega1/verify_package.py), mas o
+ambiente de execução desta sessão NÃO dispõe de shell/interpretador Python.
+
+Consequências, sem eufemismo:
+
+  * NENHUM hash SHA-256 foi calculado nesta revisão.
+  * A correspondência byte a byte entre os blocos do TXT e os arquivos de
+    origem NÃO está comprovada por execução.
+  * Integridade = NÃO COMPROVADA.
+  * Não houve simulação de resultado nem preenchimento estimado de hash.
+
+Um hash inventado seria pior do que hash nenhum: daria aparência de garantia
+a um artefato não verificado.
+
+
+2. O QUE FOI EFETIVAMENTE VERIFICADO (leitura do arquivo)
+-----------------------------------------------------------------------
+* Os 17 marcadores "===== FILE: <caminho> =====" estão presentes, um por
+  arquivo esperado, sem marcador duplicado e sem caminho fora da lista.
+* Nenhum marcador residual de seção pendente ("AINDA NÃO INCLUÍDO") restou.
+* Os blocos estão na ordem de dependência declarada no README §3.
+
+Posição dos marcadores no arquivo atual (linha onde cada bloco começa):
+
+| #  | bloco | linha | sha256 origem | sha256 no TXT | resultado |
+|----|-------|-------|---------------|---------------|-----------|
+| 1  | supabase/scripts/entrega1_apply_all_transactional.sql                                  | 142   | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 2  | supabase/migrations/20261101100100_entrega1_documents_scope_policy_up.sql               | 276   | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 3  | supabase/migrations/20261101100200_entrega1_medical_certificate_versioning_up.sql       | 502   | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 4  | supabase/migrations/20261101100300_entrega1_storage_tenant_isolation_up.sql             | 918   | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 5  | supabase/migrations/20261101100400_entrega1_subdomain_immutability_up.sql               | 1965  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 6  | supabase/recovery/20261101100100_entrega1_documents_scope_policy_recovery.sql           | 2079  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 7  | supabase/recovery/20261101100200_entrega1_medical_certificate_versioning_recovery.sql   | 2137  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 8  | supabase/recovery/20261101100300_entrega1_storage_tenant_isolation_recovery.sql         | 2240  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 9  | supabase/recovery/20261101100400_entrega1_subdomain_immutability_recovery.sql           | 2391  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 10 | docs/entrega1/SESSION_HELPERS_APPLIED.sql                                               | 2411  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 11 | supabase/tests/entrega1_isolated_seed.sql                                               | 2640  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 12 | supabase/tests/entrega1_isolated_teardown.sql                                           | 2940  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 13 | src/pages/app/modules/meusdocumentos/medicalCertificateStore.ts                         | 2998  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 14 | src/pages/app/modules/meusdocumentos/components/MedicalCertificateUploadModal.tsx        | 3521  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 15 | src/pages/app/modules/meusdocumentos/components/CertificateViewerModal.tsx               | 3809  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 16 | src/pages/app/modules/meusdocumentos/page.tsx                                            | 3964  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+| 17 | docs/entrega1/README.md                                                                  | 4646  | NÃO CALCULADO | NÃO CALCULADO | NÃO VERIFICADO |
+
+Total: 17 marcadores / 17 arquivos esperados — presença OK, correspondência
+NÃO verificada.
+
+
+3. COMO COMPROVAR (um comando, sem edição de nada)
+-----------------------------------------------------------------------
+Em uma máquina com Python 3.8+ e o repositório clonado:
+
+    python3 docs/entrega1/verify_package.py
+    echo "exit=$?"
+
+    # opcional: conferir o exit code de forma explícita
+    test $? -eq 0 && echo "INTEGRIDADE OK" || echo "INTEGRIDADE FALHOU"
+
+Critérios do verificador (já implementados no arquivo):
+
+  * falha (exit 1) se faltar marcador, se algum arquivo de origem não existir,
+    se houver marcador duplicado ou se algum bloco divergir;
+  * normaliza apenas quebras de linha finais (separador entre blocos);
+  * grava este arquivo com bytes e SHA-256 dos dois lados e o veredito por
+    bloco;
+  * não toca no banco, não executa migration, não acessa a rede.
+
+Enquanto o comando acima não retornar exit 0 e este arquivo não for
+sobrescrito pelo próprio script, o status permanece: NÃO COMPROVADA.
+
+
+4. LIMITE DESTE DOCUMENTO
+-----------------------------------------------------------------------
+Correspondência de arquivo NÃO é prova de segurança e NÃO substitui nenhum
+teste do README §12 (base 1–28, P1–P12, C1–C4, E1–E9, S1–S2, EX1–EX2).
+Nenhum desses testes foi executado. Build de frontend também não é prova de
+segurança.
