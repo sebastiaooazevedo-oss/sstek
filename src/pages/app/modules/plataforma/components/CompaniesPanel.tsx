@@ -7,6 +7,7 @@ import {
 } from "@/pages/app/modules/plataforma/platformApi";
 import CompanyFormModal from "@/pages/app/modules/plataforma/components/CompanyFormModal";
 import CompanyAdminsModal from "@/pages/app/modules/plataforma/components/CompanyAdminsModal";
+import { tenantHost } from "@/core/domain";
 
 interface CompaniesPanelProps {
   companies: PlatformCompany[];
@@ -219,7 +220,7 @@ export default function CompaniesPanel({
                   <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground-600">
                     <span className="inline-flex items-center gap-1">
                       <i className="ri-global-line"></i>
-                      {company.subdomain}.sstek.com
+                      {tenantHost(company.subdomain)}
                     </span>
                     <span>{company.collaborators} colaboradores</span>
                     <span>{companyAdmins.length} administrador(es)</span>

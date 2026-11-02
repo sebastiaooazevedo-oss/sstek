@@ -12,6 +12,7 @@ import {
   superKpis,
   tenants,
 } from "@/mocks/app";
+import { tenantHost } from "@/core/domain";
 
 export default function SuperDashboard() {
   const totalLicenses = licenseDistribution.reduce((acc, l) => acc + l.value, 0);
@@ -85,7 +86,7 @@ export default function SuperDashboard() {
                 <tr key={t.subdomain} className="border-b border-background-100 last:border-0">
                   <td className="py-3.5">
                     <p className="text-sm font-semibold text-foreground-950">{t.name}</p>
-                    <p className="text-xs text-foreground-500">{t.subdomain}.sstek.com</p>
+                    <p className="text-xs text-foreground-500">{tenantHost(t.subdomain)}</p>
                   </td>
                   <td className="py-3.5">
                     <span className="rounded-md bg-background-100 px-2 py-1 text-xs font-semibold text-foreground-700">{t.plan}</span>

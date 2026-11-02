@@ -4,6 +4,7 @@ import ExportMenu from "@/pages/app/components/ExportMenu";
 import { downloadCsv, tableHtml } from "@/pages/app/utils/exportTable";
 import { pdfHeader, printHtml, todayBr } from "@/pages/app/utils/exportPdf";
 import { platformApi, type PlatformLicenseRow } from "@/pages/app/modules/plataforma/platformApi";
+import { tenantHost } from "@/core/domain";
 
 const planPrice: Record<string, number> = { S1: 149, S2: 449, S3: 1290 };
 
@@ -180,7 +181,7 @@ export default function LicensesPanel() {
 
   const toExportRow = (row: PlatformLicenseRow): string[] => [
     row.companyName,
-    `${row.subdomain}.sstek.com`,
+    tenantHost(row.subdomain),
     row.plan,
     String(row.seats),
     String(row.collaborators),
@@ -334,7 +335,7 @@ export default function LicensesPanel() {
                 <tr key={row.companyId} className="border-b border-background-100 last:border-0">
                   <td className="px-4 py-3.5">
                     <p className="text-sm font-semibold text-foreground-950">{row.companyName}</p>
-                    <p className="text-xs text-foreground-500">{row.subdomain}.sstek.com</p>
+                    <p className="text-xs text-foreground-500">{tenantHost(row.subdomain)}</p>
                   </td>
                   <td className="px-4 py-3.5">
                     <span className="rounded-md bg-background-100 px-2 py-1 text-xs font-semibold text-foreground-700">

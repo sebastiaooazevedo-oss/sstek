@@ -3,6 +3,7 @@ import ColaboradorDashboard from "@/pages/app/components/ColaboradorDashboard";
 import SuperDashboard from "@/pages/app/components/SuperDashboard";
 import { roleDescriptions, roleLabels } from "@/mocks/app";
 import { useAppSession } from "@/pages/app/context";
+import { tenantHost } from "@/core/domain";
 
 export default function AppDashboard() {
   const session = useAppSession();
@@ -35,7 +36,7 @@ export default function AppDashboard() {
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-background-200 px-3.5 py-2 text-xs font-semibold text-foreground-700">
             <i className="ri-global-line"></i>
-            {session.subdomain}.sstek.com
+            {tenantHost(session.subdomain)}
           </span>
         </div>
       </div>

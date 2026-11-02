@@ -1,5 +1,6 @@
 import { getSettings } from "@/pages/app/settings/settingsStore";
 import { resolveQrCode } from "@/pages/app/modules/qrcodes/qrIdentifierStore";
+import { ROOT_DOMAIN } from "@/core/domain";
 
 /**
  * Resolve o endereço que é gravado DENTRO do QR-Code de fiscalização.
@@ -23,7 +24,7 @@ function appPathPrefix(): string {
 /** Origem do navegador atual. */
 function currentOrigin(): string {
   if (typeof window !== "undefined" && window.location.origin) return window.location.origin;
-  return "https://sstek.com";
+  return `https://${ROOT_DOMAIN}`;
 }
 
 /** Endereço montado a partir de onde o sistema está aberto agora. */

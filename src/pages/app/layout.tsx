@@ -6,6 +6,7 @@ import DailyMoodGate from "@/pages/app/components/DailyMoodGate";
 import TenantGate from "@/pages/app/components/TenantGate";
 import SessionGate from "@/pages/app/components/SessionGate";
 import PermissionGuard from "@/pages/app/components/PermissionGuard";
+import ModuleGuard from "@/pages/app/components/ModuleGuard";
 import { AppSessionContext, type AppSession } from "@/pages/app/context";
 import { useAuth } from "@/pages/app/auth/authProvider";
 import { setSealSubdomain } from "@/pages/app/signature/authenticitySeal";
@@ -63,9 +64,11 @@ export default function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onOpenMenu={() => setSidebarOpen(true)} />
         <main className="app-content flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8">
-          <PermissionGuard>
-            <Outlet />
-          </PermissionGuard>
+          <ModuleGuard>
+            <PermissionGuard>
+              <Outlet />
+            </PermissionGuard>
+          </ModuleGuard>
         </main>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import QrSticker, { type QrStickerFormat } from "@/pages/app/modules/qrcodes/components/QrSticker";
 import type { HelmetCaInfo } from "@/pages/app/modules/qrcodes/qrStickerData";
 import type { Collaborator } from "@/mocks/collaborators";
+import { tenantHost } from "@/core/domain";
 
 /** Colunas × linhas da folha A4 adesiva (3 × 8 = 24 adesivos por folha). */
 export const SHEET_COLUMNS = 3;
@@ -118,7 +119,7 @@ export default function QrPrintSheet({
             {companyName} · {collaborators.length} adesivo(s) · QR-Code 3 × 3 cm
           </p>
         </div>
-        <p className="text-[7pt] font-semibold text-[#5b6b70]">sstek.com/{subdomain}</p>
+        <p className="text-[7pt] font-semibold text-[#5b6b70]">{tenantHost(subdomain)}</p>
       </div>
 
       <div className={gridClass}>{collaborators.map((collaborator) => stickerFor(collaborator))}</div>

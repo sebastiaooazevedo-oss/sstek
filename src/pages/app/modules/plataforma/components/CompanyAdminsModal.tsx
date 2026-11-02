@@ -5,6 +5,7 @@ import {
   type PlatformCompany,
   type PlatformCompanyAdmin,
 } from "@/pages/app/modules/plataforma/platformApi";
+import { tenantHost } from "@/core/domain";
 
 interface CompanyAdminsModalProps {
   open: boolean;
@@ -136,7 +137,7 @@ export default function CompanyAdminsModal({ open, company, admins, onClose, onS
       open={open}
       onClose={onClose}
       title="Administradores da empresa"
-      subtitle={company ? `${company.name} · ${company.subdomain}.sstek.com` : "Selecione uma empresa"}
+      subtitle={company ? `${company.name} · ${tenantHost(company.subdomain)}` : "Selecione uma empresa"}
       icon="ri-shield-user-line"
       footer={
         <ModalButton variant="ghost" onClick={onClose}>

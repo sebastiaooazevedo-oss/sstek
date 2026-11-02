@@ -13,6 +13,7 @@ import {
   parseCollaboratorFile,
   type ParsedImportRow,
 } from "@/pages/app/modules/plataforma/collaboratorImport";
+import { tenantHost } from "@/core/domain";
 
 interface BulkImportPanelProps {
   notify: (message: string | null, error?: string | null) => void;
@@ -223,7 +224,7 @@ export default function BulkImportPanel({ notify }: BulkImportPanelProps) {
             <dl className="mt-4 space-y-2 rounded-md bg-background-100 px-3.5 py-3 text-[11px]">
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-foreground-500">Subdomínio</dt>
-                <dd className="font-medium text-foreground-900">{selectedCompany.subdomain}.sstek.com</dd>
+                <dd className="font-medium text-foreground-900">{tenantHost(selectedCompany.subdomain)}</dd>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-foreground-500">Colaboradores hoje</dt>

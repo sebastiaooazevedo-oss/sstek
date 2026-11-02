@@ -1,6 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import AppBrandLogo from "@/components/base/AppBrandLogo";
-import { sidebarByRole, type RoleId } from "@/mocks/app";
+import type { RoleId } from "@/mocks/app";
+import { navSectionsFor } from "@/core/modules/registry";
+import { tenantHost } from "@/core/domain";
 import { isModuleEnabled, useSystemSettings } from "@/pages/app/settings/settingsStore";
 import { moduleIdByNavId } from "@/pages/app/settings/modules";
 import { permissionForNav } from "@/pages/app/permissions/accessControl";
@@ -64,7 +66,7 @@ export default function AppSidebar({ role, subdomain, company, open, onClose }: 
     : 0;
   // Remove do menu os itens de módulos não contratados pela empresa e as telas
   // que a matriz "Perfis & permissões" não libera para o perfil logado.
-  const sections = sidebarByRole[role]
+  const sections = navSectionsFor(role)
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
@@ -123,7 +125,7 @@ export default function AppSidebar({ role, subdomain, company, open, onClose }: 
               <p className="truncate text-sm font-semibold text-primary-900 dark:text-primary-50">{company}</p>
               <p className="flex items-center gap-1 truncate text-xs text-primary-600 dark:text-primary-300">
                 <i className="ri-global-line"></i>
-                {subdomain}.sstek.com
+                {tenantHost(subdomain)}
               </p>
             </div>
           </div>
@@ -153,7 +155,7 @@ export default function AppSidebar({ role, subdomain, company, open, onClose }: 
                           ? pendingSurveys > 0
                             ? String(pendingSurveys)
                             : undefined
-                          : item.badge;
+                          : undefined;
                   return (
                     <li key={item.id}>
                       <Link

@@ -5,6 +5,7 @@ import {
   type PlatformCompany,
   type PlatformDomain,
 } from "@/pages/app/modules/plataforma/platformApi";
+import { tenantHost } from "@/core/domain";
 
 interface DomainsPanelProps {
   domains: PlatformDomain[];
@@ -230,8 +231,8 @@ export default function DomainsPanel({ domains, companies, onRefresh, notify }: 
               ))}
             </select>
           </Field>
-          <Field label="Domínio" required hint="Ex.: empresa.sstek.com ou sst.você.com.br" className="sm:col-span-2">
-            <input className={inputClass} value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="empresa.sstek.com" />
+          <Field label="Domínio" required hint={`Ex.: ${tenantHost("empresa")} ou sst.suaempresa.com.br`} className="sm:col-span-2">
+            <input className={inputClass} value={domain} onChange={(e) => setDomain(e.target.value)} placeholder={tenantHost("empresa")} />
           </Field>
           <Field label="Status DNS">
             <select className={selectClass} value={dnsStatus} onChange={(e) => setDnsStatus(e.target.value)}>

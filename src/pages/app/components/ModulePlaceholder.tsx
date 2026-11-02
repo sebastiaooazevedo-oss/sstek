@@ -1,6 +1,8 @@
 import { useParams } from "react-router-dom";
-import { roleLabels, sidebarByRole } from "@/mocks/app";
+import { roleLabels } from "@/mocks/app";
+import { navSectionsFor } from "@/core/modules/registry";
 import { useAppSession } from "@/pages/app/context";
+import { tenantHost } from "@/core/domain";
 
 const moduleInfo: Record<string, { icon: string; title: string; text: string }> = {
   empresas: { icon: "ri-building-2-line", title: "Empresas & subdomínios", text: "Cadastro de tenants, aplicação da logomarca, subdomínio exclusivo e gestão de contratos." },
@@ -34,7 +36,7 @@ export default function ModulePlaceholder() {
   const key = module || "";
   const info = moduleInfo[key];
 
-  const fallbackSection = sidebarByRole[session.role]
+  const fallbackSection = navSectionsFor(session.role)
     .flatMap((s) => s.items)
     .find((i) => i.id === key);
 
@@ -72,7 +74,7 @@ export default function ModulePlaceholder() {
 
         <p className="mt-8 text-xs text-foreground-500">
           Você está acessando como <strong className="font-semibold text-foreground-700">{roleLabels[session.role]}</strong> ·{" "}
-          {session.subdomain}.sstek.com
+          {tenantHost(session.subdomain)}
         </p>
       </div>
     </div>

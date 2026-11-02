@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import BrandLogo from "@/components/base/BrandLogo";
 import AppLoadingScreen from "@/pages/app/components/AppLoadingScreen";
+import { tenantHost } from "@/core/domain";
 
 type TenantState = "loading" | "ok" | "unknown" | "suspended" | "error";
 
@@ -97,7 +98,7 @@ export default function TenantGate({ subdomain, children }: TenantGateProps) {
             </>
           ) : isUnknown ? (
             <>
-              Não existe empresa vinculada ao endereço <strong>{subdomain}.sstek.com</strong>. Por segurança, nenhum
+              Não existe empresa vinculada ao endereço <strong>{tenantHost(subdomain)}</strong>. Por segurança, nenhum
               dado de outra empresa é exibido.
             </>
           ) : (

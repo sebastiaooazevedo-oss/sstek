@@ -3,6 +3,7 @@ import ExportMenu from "@/pages/app/components/ExportMenu";
 import { downloadCsv, tableHtml } from "@/pages/app/utils/exportTable";
 import { pdfHeader, printHtml, todayBr } from "@/pages/app/utils/exportPdf";
 import { platformApi, type PlatformInvoiceCompany, type PlatformInvoiceRow } from "@/pages/app/modules/plataforma/platformApi";
+import { tenantHost } from "@/core/domain";
 
 const invoiceStatusLabel: Record<string, string> = {
   paid: "Paga",
@@ -311,7 +312,7 @@ export default function PaymentsPanel() {
                   <td className="px-4 py-3.5">
                     <p className="text-sm text-foreground-900">{invoice.company_name ?? "—"}</p>
                     {invoice.company_subdomain && (
-                      <p className="text-xs text-foreground-500">{invoice.company_subdomain}.sstek.com</p>
+                      <p className="text-xs text-foreground-500">{tenantHost(invoice.company_subdomain)}</p>
                     )}
                   </td>
                   <td className="px-4 py-3.5">

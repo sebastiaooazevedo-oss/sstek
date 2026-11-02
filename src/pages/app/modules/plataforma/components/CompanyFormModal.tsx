@@ -5,6 +5,7 @@ import {
   type PlatformCompany,
   type PlatformCompanyAdmin,
 } from "@/pages/app/modules/plataforma/platformApi";
+import { ROOT_DOMAIN } from "@/core/domain";
 
 interface CompanyFormModalProps {
   open: boolean;
@@ -142,7 +143,7 @@ export default function CompanyFormModal({ open, company, admins, onClose, onSav
               onChange={(e) => setSubdomain(e.target.value.toLowerCase())}
               placeholder="empresa"
             />
-            <span className="whitespace-nowrap text-xs text-foreground-500">.sstek.com</span>
+            <span className="whitespace-nowrap text-xs text-foreground-500">.{ROOT_DOMAIN}</span>
           </div>
         </Field>
         <Field label="Plano">

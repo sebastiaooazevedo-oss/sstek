@@ -1,20 +1,5 @@
 export type RoleId = "super" | "admin" | "colaborador";
 
-export interface NavItem {
-  id: string;
-  label: string;
-  icon: string;
-  badge?: string;
-  soon?: boolean;
-  /** Subitens exibidos dentro do grupo (ex.: seções de Documentos). */
-  children?: NavItem[];
-}
-
-export interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
 export const roleLabels: Record<RoleId, string> = {
   super: "Super Administrador",
   admin: "Administrador",
@@ -27,107 +12,7 @@ export const roleDescriptions: Record<RoleId, string> = {
   colaborador: "Seus documentos, treinamentos, EPIs e pesquisas.",
 };
 
-export const sidebarByRole: Record<RoleId, NavSection[]> = {
-  super: [
-    {
-      title: "Plataforma",
-      items: [
-        { id: "dashboard", label: "Visão geral", icon: "ri-dashboard-3-line" },
-        { id: "empresas", label: "Empresas & subdomínios", icon: "ri-building-2-line" },
-        { id: "plataforma", label: "Base CAEPI central", icon: "ri-database-2-line" },
-        { id: "plataforma/parametrizacao", label: "Parametrização por perfil", icon: "ri-equalizer-line" },
-        { id: "plataforma/perfis", label: "Perfis & permissões", icon: "ri-shield-user-line" },
-      ],
-    },
-    {
-      title: "Comercial",
-      items: [
-        { id: "plataforma/licencas", label: "Licenças & planos", icon: "ri-bank-card-line" },
-        { id: "plataforma/pagamentos", label: "Pagamentos", icon: "ri-wallet-3-line" },
-        { id: "inadimplencia", label: "Inadimplência", icon: "ri-alarm-warning-line", badge: "6" },
-      ],
-    },
-    {
-      title: "Dados",
-      items: [
-        { id: "plataforma/importacao", label: "Importar colaboradores", icon: "ri-file-upload-line" },
-        { id: "documentos", label: "Documentos", icon: "ri-file-list-3-line" },
-        { id: "regulamento", label: "Regulamento Interno", icon: "ri-book-read-line" },
-        { id: "cipa", label: "CIPA", icon: "ri-government-line" },
-        { id: "assinaturas", label: "Assinaturas", icon: "ri-file-shield-2-line" },
-        { id: "politicas", label: "Políticas de assinatura", icon: "ri-shield-keyhole-line" },
-        { id: "sentimento", label: "Sentimento da equipe", icon: "ri-emotion-line" },
-        { id: "qrlogs", label: "QR-Codes & logs", icon: "ri-qr-scan-2-line" },
-        { id: "plataforma/logs", label: "Logs por empresa", icon: "ri-history-line" },
-      ],
-    },
-    {
-      title: "Sistema",
-      items: [{ id: "config", label: "Configurações gerais", icon: "ri-settings-3-line" }],
-    },
-  ],
-  admin: [
-    {
-      title: "Operação",
-      items: [
-        { id: "dashboard", label: "Dashboard", icon: "ri-dashboard-3-line" },
-        { id: "colaboradores", label: "Colaboradores", icon: "ri-team-line" },
-        {
-          id: "documentos",
-          label: "Documentos",
-          icon: "ri-file-list-3-line",
-          badge: "17",
-        },
-        { id: "veiculos", label: "Veículos", icon: "ri-truck-line" },
-        { id: "assinaturas", label: "Assinaturas", icon: "ri-file-shield-2-line" },
-      ],
-    },
-    {
-      title: "Conformidade",
-      items: [
-        { id: "cipa", label: "CIPA", icon: "ri-government-line" },
-        { id: "regulamento", label: "Regulamento Interno", icon: "ri-book-read-line" },
-        { id: "politicas", label: "Políticas de assinatura", icon: "ri-shield-keyhole-line" },
-        { id: "sentimento", label: "Sentimento da equipe", icon: "ri-emotion-line" },
-        { id: "pesquisas", label: "Pesquisas", icon: "ri-survey-line" },
-        { id: "treinamentos", label: "Treinamentos", icon: "ri-award-line" },
-        { id: "qrcodes", label: "QR-Codes de fiscalização", icon: "ri-qr-scan-2-line" },
-      ],
-    },
-    {
-      title: "Gestão",
-      items: [
-        { id: "perfis", label: "Perfis & permissões", icon: "ri-shield-user-line" },
-        { id: "config", label: "Configurações da empresa", icon: "ri-settings-3-line" },
-      ],
-    },
-  ],
-  colaborador: [
-    {
-      title: "Meu espaço",
-      items: [
-        { id: "dashboard", label: "Meu painel", icon: "ri-dashboard-3-line" },
-        { id: "meusdados", label: "Meus dados", icon: "ri-user-settings-line" },
-        { id: "assinaturas", label: "Assinaturas", icon: "ri-file-shield-2-line" },
-        { id: "meusdocumentos", label: "Meus documentos", icon: "ri-file-list-3-line" },
-        { id: "regulamento", label: "Regulamento Interno", icon: "ri-book-read-line" },
-        { id: "minhaepi", label: "Minha ficha de EPI", icon: "ri-shirt-line" },
-        { id: "minhaequipe", label: "Minha equipe", icon: "ri-team-line" },
-      ],
-    },
-    {
-      title: "Desenvolvimento",
-      items: [
-        { id: "meustreinamentos", label: "Meus treinamentos", icon: "ri-award-line" },
-        { id: "pesquisas", label: "Pesquisas", icon: "ri-survey-line" },
-      ],
-    },
-    {
-      title: "Conta",
-      items: [{ id: "alertas", label: "Alertas", icon: "ri-notification-3-line", badge: "3" }],
-    },
-  ],
-};
+/** O menu lateral agora é montado pelos manifestos dos módulos (`@/core/modules/registry`). */
 
 /* ------------------------------------------------------------------ */
 /* SUPER ADMINISTRADOR                                                  */

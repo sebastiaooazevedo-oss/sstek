@@ -2,6 +2,7 @@ import { getInitials } from "@/pages/app/context";
 import type { Collaborator } from "@/mocks/collaborators";
 import type { QrProfile } from "@/mocks/qrcodes";
 import type { CursoSituacao, FichaSstData } from "@/pages/fiscalizacao/types";
+import { tenantHost } from "@/core/domain";
 
 /**
  * Monta a PRÉVIA da ficha externa a partir do cadastro interno.
@@ -85,7 +86,7 @@ export function buildFiscalizacaoPreview({
   return {
     empresa: {
       nome: companyName,
-      enderecoWeb: subdomain ? `${subdomain}.sstek.com.br` : "",
+      enderecoWeb: subdomain ? tenantHost(subdomain) : "",
     },
     colaborador: {
       nome: collaborator.name,
