@@ -9,6 +9,8 @@ import {
   termoConsultaPadrao,
 } from "@/pages/fiscalizacao/consultaTermo";
 import FichaAutorizada from "@/pages/fiscalizacao/components/FichaAutorizada";
+import SessaoEncerrada from "@/pages/fiscalizacao/components/SessaoEncerrada";
+import VoltarQrCodes from "@/pages/fiscalizacao/components/VoltarQrCodes";
 import type { FichaSstData } from "@/pages/fiscalizacao/types";
 
 /**
@@ -69,6 +71,7 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
   const [expiraEm, setExpiraEm] = useState("");
   const [abrindoFicha, setAbrindoFicha] = useState(false);
   const [erroFicha, setErroFicha] = useState<string | null>(null);
+  const [encerrada, setEncerrada] = useState<{ protocolo: string; em: Date; empresa: string } | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -142,8 +145,8 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
     }
   };
 
-  const encerrar = async () => {
-    if (token) await encerrarConsultaSessao(token);
+  /** Limpa a tela para uma nova solicitação (nova identificação e novo aceite). */
+  const novaConsulta = () => {
     setToken(null);
     setDadosFicha(null);
     setExpiraEm("");
@@ -151,7 +154,29 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
     setErroFicha(null);
     setErroEnvio(null);
     setTermoAceito(false);
+    setEncerrada(null);
   };
+
+  /** Revoga a sessão no servidor e mostra a página de sessão encerrada. */
+  const encerrar = async () => {
+    const resumo = { protocolo: registro?.protocolo ?? "", em: new Date(), empresa: dadosFicha?.empresa.nome ?? "" };
+    if (token) await encerrarConsultaSessao(token);
+    setToken(null);
+    setDadosFicha(null);
+    setExpiraEm("");
+    setEncerrada(resumo);
+  };
+
+  if (encerrada) {
+    return (
+      <SessaoEncerrada
+        protocolo={encerrada.protocolo}
+        encerradaEm={encerrada.em}
+        empresaNome={encerrada.empresa}
+        onNovaConsulta={novaConsulta}
+      />
+    );
+  }
 
   // Sessão validada no servidor: a ficha reduzida é exibida.
   if (dadosFicha && token) {
@@ -163,7 +188,10 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
         expiraEm={expiraEm}
         empresaNome={dadosFicha.empresa.nome}
         onEncerrar={() => void encerrar()}
-        onNovaConsulta={() => void encerrar()}
+        onNovaConsulta={() => {
+          if (token) void encerrarConsultaSessao(token);
+          novaConsulta();
+        }}
       />
     );
   }
@@ -181,10 +209,13 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
               <p className="text-[10.5px] text-foreground-500">Verificação de SST</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-background-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-foreground-500">
-            <i className="ri-lock-2-line"></i>
-            Área restrita
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden items-center gap-1.5 rounded-full bg-background-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-foreground-500 sm:inline-flex">
+              <i className="ri-lock-2-line"></i>
+              Área restrita
+            </span>
+            <VoltarQrCodes />
+          </div>
         </div>
       </header>
 

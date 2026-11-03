@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import FichaSst from "@/pages/fiscalizacao/components/FichaSst";
 import EntradaNeutra from "@/pages/fiscalizacao/components/EntradaNeutra";
+import SessaoEncerrada from "@/pages/fiscalizacao/components/SessaoEncerrada";
 import type { FichaSstData } from "@/pages/fiscalizacao/types";
 import { fiscalizacaoModelo } from "@/mocks/fiscalizacaoModelo";
 
@@ -42,7 +43,7 @@ export default function FiscalizacaoPage() {
   const isModelo = id === "modelo";
   const empresa = (searchParams.get("empresa") ?? "").trim().toLowerCase();
 
-  const [acessoEncerrado, setAcessoEncerrado] = useState(false);
+  const [acessoEncerrado, setAcessoEncerrado] = useState<Date | null>(null);
   const [consultaEm] = useState(() => new Date());
 
   const sessaoValidaAte = useMemo(() => formatTime(new Date(consultaEm.getTime() + 30 * 60 * 1000)), [consultaEm]);
@@ -61,22 +62,13 @@ export default function FiscalizacaoPage() {
 
   if (acessoEncerrado) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background-100 px-6 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
-          <i className="ri-lock-2-line text-3xl"></i>
-        </span>
-        <h1 className="font-heading text-2xl font-extrabold text-foreground-950">Acesso encerrado</h1>
-        <p className="max-w-md text-sm text-foreground-600">
-          A sessão de consulta foi encerrada. Para ver a ficha novamente, é preciso uma nova autorização de acesso.
-        </p>
-        <Link
-          to="/"
-          className="mt-2 inline-flex items-center gap-2 whitespace-nowrap rounded-md bg-primary-500 px-4 py-2.5 text-sm font-semibold text-background-50 transition-colors hover:bg-primary-600"
-        >
-          <i className="ri-home-4-line"></i>
-          Ir para o site do SSTEK
-        </Link>
-      </div>
+      <SessaoEncerrada
+        protocolo={SESSAO_MODELO}
+        encerradaEm={acessoEncerrado}
+        empresaNome={fiscalizacaoModelo.empresa.nome}
+        ilustrativo
+        onNovaConsulta={() => setAcessoEncerrado(null)}
+      />
     );
   }
 
@@ -115,7 +107,7 @@ export default function FiscalizacaoPage() {
             sessaoValidaAte={sessaoValidaAte}
             consultadoEm={consultadoEm}
             ilustrativo
-            onEncerrar={() => setAcessoEncerrado(true)}
+            onEncerrar={() => setAcessoEncerrado(new Date())}
           />
         </div>
 
