@@ -11,6 +11,13 @@ interface ConsultasExternasTableProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  /** Nome do colaborador dono da ficha consultada. */
+  nomeColaborador: (ref: string | null) => string;
+}
+
+function dataHora(value: string): { data: string; hora: string } {
+  const full = formatConsultaDateTime(value);
+  return full === "—" ? { data: "—", hora: "" } : { data: full.slice(0, 10), hora: full.slice(11) };
 }
 
 export default function ConsultasExternasTable({
@@ -19,6 +26,7 @@ export default function ConsultasExternasTable({
   loading,
   error,
   onRetry,
+  nomeColaborador,
 }: ConsultasExternasTableProps) {
   if (loading) {
     return (
@@ -61,7 +69,7 @@ export default function ConsultasExternasTable({
         <p className="max-w-[56ch] text-xs leading-relaxed text-foreground-500">
           {total === 0
             ? "Cada leitura do QR-Code que passar pela identificação do consultante e pelo aceite do termo LGPD fica registrada aqui, com nome, órgão, CPF, finalidade e data/hora."
-            : "Ajuste a busca ou o filtro de órgão para localizar o registro."}
+            : "Ajuste a busca, o período ou os filtros de colaborador e órgão para localizar o registro."}
         </p>
       </div>
     );
@@ -69,10 +77,10 @@ export default function ConsultasExternasTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1040px] border-collapse text-left">
+      <table className="w-full min-w-[1180px] border-collapse text-left">
         <thead>
           <tr className="border-b border-background-200 bg-background-100">
-            {["Data/hora", "Quem consultou", "CPF", "Órgão / empresa", "Finalidade", "QR lido", "Termo"].map((title) => (
+            {["Protocolo", "Data", "Hora", "Colaborador (ficha)", "Quem consultou", "CPF", "Órgão / empresa", "Finalidade", "Termo"].map((title) => (
               <th
                 key={title}
                 className="whitespace-nowrap px-4 py-3 text-[10.5px] font-bold uppercase tracking-wide text-foreground-500"
@@ -88,26 +96,28 @@ export default function ConsultasExternasTable({
               key={consulta.id}
               className="border-b border-background-200/70 last:border-b-0 hover:bg-background-100/60"
             >
+              <td className="whitespace-nowrap px-4 py-3 font-mono text-[11.5px] font-bold text-foreground-900">
+                {consulta.protocolo || "—"}
+              </td>
               <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-foreground-700">
-                {formatConsultaDateTime(consulta.createdAt)}
+                {dataHora(consulta.createdAt).data}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-foreground-700">
+                {dataHora(consulta.createdAt).hora}
               </td>
               <td className="px-4 py-3">
-                <p className="text-xs font-semibold text-foreground-950">{consulta.nome || "—"}</p>
-                {consulta.colaboradorRef && (
-                  <p className="text-[10.5px] text-foreground-400">Ficha de {consulta.colaboradorRef}</p>
-                )}
+                <p className={`text-xs font-semibold ${consulta.colaboradorRef ? "text-foreground-950" : "text-accent-800"}`}>
+                  {nomeColaborador(consulta.colaboradorRef)}
+                </p>
+                <p className="font-mono text-[10px] text-foreground-400">QR {consulta.codigoQr}</p>
               </td>
+              <td className="px-4 py-3 text-xs font-semibold text-foreground-950">{consulta.nome || "—"}</td>
               <td className="whitespace-nowrap px-4 py-3 font-mono text-[11px] font-semibold text-foreground-800">
                 {formatConsultaCpf(consulta.cpf)}
               </td>
               <td className="max-w-[220px] px-4 py-3 text-xs text-foreground-700">{consulta.orgao || "—"}</td>
               <td className="max-w-[260px] px-4 py-3 text-xs leading-relaxed text-foreground-600">
                 {consulta.finalidade || <span className="text-foreground-400">Não informada</span>}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3">
-                <span className="rounded bg-background-200 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-foreground-700">
-                  {consulta.codigoQr}
-                </span>
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 <span

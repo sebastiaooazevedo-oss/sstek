@@ -10,13 +10,16 @@ import {
   formatConsultaCpf,
   formatConsultaDateTime,
   isToday,
+  paginar,
   periodoLabels,
+  TAMANHOS_PAGINA,
   totalPorOrgao,
   type ConsultaExterna,
   type ConsultaPeriodo,
 } from "@/pages/app/modules/qrcodes/consultasExternasApi";
 import { pdfFooter, pdfHeader, printHtml } from "@/pages/app/utils/exportPdf";
 import { downloadCsv, tableHtml } from "@/pages/app/utils/exportTable";
+import { useCollaborators } from "@/pages/app/modules/colaboradores/collaboratorsStore";
 
 /**
  * Relatório das consultas externas da ficha de verificação.
@@ -40,6 +43,19 @@ export default function ConsultasExternasPage() {
   const [orgaoFilter, setOrgaoFilter] = useState("");
   const [periodo, setPeriodo] = useState<ConsultaPeriodo>("all");
   const [order, setOrder] = useState<"recent" | "oldest">("recent");
+  const [colaboradorFilter, setColaboradorFilter] = useState("");
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const [porPagina, setPorPagina] = useState<number>(30);
+  const [pagina, setPagina] = useState(1);
+
+  // Nome do colaborador dono de cada ficha (pela referência gravada na consulta).
+  const { collaborators } = useCollaborators(session.subdomain);
+  const nomePorRef = useMemo(() => new Map(collaborators.map((c) => [c.id, c.name])), [collaborators]);
+  const nomeColaborador = useCallback(
+    (ref: string | null) => (ref ? nomePorRef.get(ref) ?? ref : "QR não vinculado"),
+    [nomePorRef]
+  );
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -64,11 +80,17 @@ export default function ConsultasExternasPage() {
 
   /** Consultas dentro do período escolhido — base dos totais por órgão. */
   const noPeriodo = useMemo(
-    () => consultas.filter((item) => dentroDoPeriodo(item.createdAt, periodo)),
-    [consultas, periodo],
+    () => consultas.filter((item) => dentroDoPeriodo(item.createdAt, periodo, de, ate)),
+    [consultas, periodo, de, ate],
   );
 
   const totaisPorOrgao = useMemo(() => totalPorOrgao(noPeriodo), [noPeriodo]);
+
+  /** Colaboradores que tiveram a ficha consultada (opções do filtro). */
+  const colaboradoresConsultados = useMemo(() => {
+    const refs = Array.from(new Set(consultas.map((item) => item.colaboradorRef).filter((ref): ref is string => Boolean(ref))));
+    return refs.map((ref) => ({ ref, nome: nomeColaborador(ref) })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [consultas, nomeColaborador]);
   const maiorTotalOrgao = totaisPorOrgao[0]?.total ?? 0;
 
   const filtered = useMemo(() => {
@@ -81,16 +103,26 @@ export default function ConsultasExternasPage() {
         item.orgao.toLowerCase().includes(term) ||
         item.finalidade.toLowerCase().includes(term) ||
         item.codigoQr.toLowerCase().includes(term) ||
+        item.protocolo.toLowerCase().includes(term) ||
+        nomeColaborador(item.colaboradorRef).toLowerCase().includes(term) ||
         (digits.length >= 3 && item.cpf.includes(digits));
       const matchOrgao = !orgaoFilter || item.orgao === orgaoFilter;
-      return matchTerm && matchOrgao;
+      const matchColaborador = !colaboradorFilter || item.colaboradorRef === colaboradorFilter;
+      return matchTerm && matchOrgao && matchColaborador;
     });
     return [...rows].sort((a, b) => {
       const left = new Date(a.createdAt).getTime() || 0;
       const right = new Date(b.createdAt).getTime() || 0;
       return order === "recent" ? right - left : left - right;
     });
-  }, [noPeriodo, search, orgaoFilter, order]);
+  }, [noPeriodo, search, orgaoFilter, colaboradorFilter, order, nomeColaborador]);
+
+  // Qualquer mudança de filtro volta para a primeira página.
+  useEffect(() => {
+    setPagina(1);
+  }, [search, orgaoFilter, colaboradorFilter, periodo, de, ate, order, porPagina]);
+
+  const paginaAtual = useMemo(() => paginar(filtered, pagina, porPagina), [filtered, pagina, porPagina]);
 
   const stats = useMemo(() => {
     const distinct = new Set(noPeriodo.map((item) => item.cpf)).size;
@@ -120,10 +152,22 @@ export default function ConsultasExternasPage() {
     accent: "bg-accent-100 text-accent-800",
   };
 
-  const exportHeaders = ["Data/hora", "Quem consultou", "CPF", "Órgão/empresa", "Finalidade", "QR lido", "Termo aceito"];
+  const exportHeaders = [
+    "Protocolo",
+    "Data/hora",
+    "Colaborador (ficha)",
+    "Quem consultou",
+    "CPF",
+    "Órgão/empresa",
+    "Finalidade",
+    "QR lido",
+    "Termo aceito",
+  ];
   const buildExportRows = () =>
     filtered.map((item) => [
+      item.protocolo,
       formatConsultaDateTime(item.createdAt),
+      nomeColaborador(item.colaboradorRef),
       item.nome,
       formatConsultaCpf(item.cpf),
       item.orgao,
@@ -137,7 +181,7 @@ export default function ConsultasExternasPage() {
     const orgaoRows = totaisPorOrgao.map((item) => [item.orgao, String(item.total)]);
     const body = `
       ${pdfHeader(`Consultas externas à ficha de verificação · ${session.company}`)}
-      <h2>Resumo · ${periodoLabels[periodo]}</h2>
+      <h2>Resumo · ${periodoLabels[periodo]}${periodo === "custom" ? ` (${de || "início"} a ${ate || "hoje"})` : ""}</h2>
       <div class="kpis">
         <div class="kpi"><b>${noPeriodo.length}</b><span>Consultas no período</span></div>
         <div class="kpi"><b>${new Set(noPeriodo.map((item) => item.cpf)).size}</b><span>Consultantes distintos</span></div>
@@ -221,8 +265,8 @@ export default function ConsultasExternasPage() {
       </div>
 
       {/* Filtros */}
-      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-background-200 bg-background-50 p-4 md:flex-row md:items-center md:p-5">
-        <div className="flex flex-1 items-center rounded-md border border-background-300 bg-background-50 pr-3 focus-within:border-primary-400">
+      <div className="mt-6 flex flex-col gap-3 rounded-lg border border-background-200 bg-background-50 p-4 md:p-5">
+        <div className="flex w-full items-center rounded-md border border-background-300 bg-background-50 pr-3 focus-within:border-primary-400">
           <span className="flex h-10 w-10 items-center justify-center text-foreground-400">
             <i className="ri-search-line text-base"></i>
           </span>
@@ -230,17 +274,18 @@ export default function ConsultasExternasPage() {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Filtrar por nome, CPF, órgão, finalidade ou código do QR..."
+            placeholder="Buscar por protocolo, colaborador, quem consultou, CPF, órgão ou finalidade..."
             className="w-full bg-transparent py-2 text-sm text-foreground-900 outline-none placeholder:text-foreground-400"
           />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Período */}
           <div className="inline-flex w-fit items-center gap-1 rounded-full border border-background-300 bg-background-100 p-1">
-            {(["today", "7d", "30d", "all"] as ConsultaPeriodo[]).map((key) => {
+            {(["today", "7d", "30d", "all", "custom"] as ConsultaPeriodo[]).map((key) => {
               const ativo = periodo === key;
-              const label = key === "today" ? "Hoje" : key === "7d" ? "7 dias" : key === "30d" ? "Mês" : "Tudo";
+              const label =
+                key === "today" ? "Hoje" : key === "7d" ? "7 dias" : key === "30d" ? "Mês" : key === "all" ? "Tudo" : "Período";
               return (
                 <button
                   key={key}
@@ -259,8 +304,51 @@ export default function ConsultasExternasPage() {
             })}
           </div>
 
+          {periodo === "custom" && (
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground-600">
+                De
+                <input
+                  type="date"
+                  value={de}
+                  max={ate || undefined}
+                  onChange={(event) => setDe(event.target.value)}
+                  className="rounded-md border border-background-300 bg-background-50 px-2 py-2 text-sm text-foreground-900 outline-none focus:border-primary-400"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground-600">
+                Até
+                <input
+                  type="date"
+                  value={ate}
+                  min={de || undefined}
+                  onChange={(event) => setAte(event.target.value)}
+                  className="rounded-md border border-background-300 bg-background-50 px-2 py-2 text-sm text-foreground-900 outline-none focus:border-primary-400"
+                />
+              </label>
+            </div>
+          )}
+
           <div className="relative">
             <select
+              aria-label="Filtrar por colaborador"
+              value={colaboradorFilter}
+              onChange={(event) => setColaboradorFilter(event.target.value)}
+              className="w-full appearance-none rounded-md border border-background-300 bg-background-50 py-2.5 pl-3 pr-9 text-sm text-foreground-900 outline-none focus:border-primary-400 sm:w-56"
+            >
+              <option value="">Todos os colaboradores</option>
+              {colaboradoresConsultados.map((item) => (
+                <option key={item.ref} value={item.ref}>
+                  {item.nome}
+                </option>
+              ))}
+            </select>
+            <i className="ri-arrow-down-s-line pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-foreground-400"></i>
+          </div>
+
+          <div className="relative">
+            <select
+              aria-label="Filtrar por órgão"
               value={orgaoFilter}
               onChange={(event) => setOrgaoFilter(event.target.value)}
               className="w-full appearance-none rounded-md border border-background-300 bg-background-50 py-2.5 pl-3 pr-9 text-sm text-foreground-900 outline-none focus:border-primary-400 sm:w-56"
@@ -279,7 +367,7 @@ export default function ConsultasExternasPage() {
             <select
               value={order}
               onChange={(event) => setOrder(event.target.value as "recent" | "oldest")}
-              className="w-full appearance-none rounded-md border border-background-300 bg-background-50 py-2.5 pl-3 pr-9 text-sm text-foreground-900 outline-none focus:border-primary-400 sm:w-48"
+              className="w-full appearance-none rounded-md border border-background-300 bg-background-50 py-2.5 pl-3 pr-9 text-sm text-foreground-900 outline-none focus:border-primary-400 sm:w-56"
             >
               <option value="recent">Mais recentes primeiro</option>
               <option value="oldest">Mais antigas primeiro</option>
@@ -287,13 +375,16 @@ export default function ConsultasExternasPage() {
             <i className="ri-arrow-down-s-line pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-foreground-400"></i>
           </div>
 
-          {(search || orgaoFilter || periodo !== "all") && (
+          {(search || orgaoFilter || colaboradorFilter || periodo !== "all") && (
             <button
               type="button"
               onClick={() => {
                 setSearch("");
                 setOrgaoFilter("");
+                setColaboradorFilter("");
                 setPeriodo("all");
+                setDe("");
+                setAte("");
               }}
               className="inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-2.5 text-sm font-medium text-foreground-600 transition-colors hover:bg-background-100"
             >
@@ -364,12 +455,60 @@ export default function ConsultasExternasPage() {
       {/* Tabela */}
       <div className="mt-5 overflow-hidden rounded-lg border border-background-200 bg-background-50">
         <ConsultasExternasTable
-          consultas={filtered}
+          consultas={paginaAtual.itens}
           total={consultas.length}
           loading={loading}
           error={error}
           onRetry={() => void carregar()}
+          nomeColaborador={nomeColaborador}
         />
+        {!loading && !error && filtered.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-background-200 px-4 py-3 text-xs text-foreground-600 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Mostrando <strong className="text-foreground-900">{paginaAtual.de}–{paginaAtual.ate}</strong> de{" "}
+              <strong className="text-foreground-900">{paginaAtual.total}</strong> registro(s)
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2">
+                Registros por página
+                <select
+                  value={porPagina}
+                  onChange={(event) => setPorPagina(Number(event.target.value))}
+                  className="rounded-md border border-background-300 bg-background-50 px-2 py-1.5 text-xs font-semibold text-foreground-900 outline-none focus:border-primary-400"
+                >
+                  {TAMANHOS_PAGINA.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Página anterior"
+                  disabled={paginaAtual.pagina <= 1}
+                  onClick={() => setPagina(paginaAtual.pagina - 1)}
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-background-300 text-foreground-700 transition-colors hover:bg-background-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <i className="ri-arrow-left-s-line text-base"></i>
+                </button>
+                <span className="min-w-[88px] text-center font-semibold text-foreground-800">
+                  Página {paginaAtual.pagina} de {paginaAtual.totalPaginas}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Próxima página"
+                  disabled={paginaAtual.pagina >= paginaAtual.totalPaginas}
+                  onClick={() => setPagina(paginaAtual.pagina + 1)}
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-background-300 text-foreground-700 transition-colors hover:bg-background-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <i className="ri-arrow-right-s-line text-base"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Nota de escopo */}
@@ -378,8 +517,8 @@ export default function ConsultasExternasPage() {
         <div className="text-[11.5px] leading-relaxed text-secondary-900/90">
           <p className="font-semibold text-secondary-900">O que este relatório registra</p>
           <p className="mt-1">
-            Nome, órgão, CPF, finalidade informada, código do QR lido, data/hora e o aceite do termo (com hash do texto
-            vigente). A gravação é feita pela função do servidor — o navegador do visitante não tem permissão para
+            Protocolo, colaborador da ficha, nome, órgão e CPF de quem consultou, finalidade informada, código do QR
+            lido, data/hora e o aceite do termo (com hash do texto vigente). A gravação é feita pela função do servidor — o navegador do visitante não tem permissão para
             inserir registros. Tokens de acesso, URLs completas e o conteúdo da ficha não são gravados. O filtro de
             período e os totais por órgão consideram a página carregada de registros.
           </p>

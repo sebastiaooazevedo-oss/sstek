@@ -19,6 +19,7 @@
 //   só esta função (chave de serviço) grava. O navegador não forja registro.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { CONSULTA_SESSAO_MINUTOS, CONSULTA_SESSAO_MS, protocoloDaConsulta } from "../_shared/consulta.ts";
 
 function corsHeaders(): HeadersInit {
   return {
@@ -273,9 +274,8 @@ async function buildFicha(admin: any, companyId: string, colaboradorRef: string)
   };
 }
 
-function protocolFromId(id: string): string {
-  return String(id ?? "").replace(/-/g, "").slice(0, 8).toUpperCase();
-}
+// Protocolo: regra compartilhada com as telas (../_shared/consulta.ts).
+const protocolFromId = protocoloDaConsulta;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
@@ -440,7 +440,7 @@ Deno.serve(async (req: Request) => {
       /* ------------------ Sessão autorizada de curta duração ------------------ */
       const token = randomToken();
       const tokenHash = await sha256Hex(token);
-      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + CONSULTA_SESSAO_MS);
 
       const { error: sessionError } = await admin.from("fiscalizacao_sessoes").insert({
         company_id: company.id,
@@ -467,7 +467,7 @@ Deno.serve(async (req: Request) => {
         protocolo,
         registradoEm: String(inserted?.created_at ?? new Date().toISOString()),
         sessao: { token, expiraEm: expiresAt.toISOString(), escopo: "ficha_resumida" },
-        detail: "Solicitação registrada e sessão de consulta autorizada por 30 minutos.",
+        detail: `Solicitação registrada e ficha liberada por ${CONSULTA_SESSAO_MINUTOS} minutos.`,
       });
     }
 
@@ -502,7 +502,7 @@ Deno.serve(async (req: Request) => {
           {
             ok: false,
             error: "sessao_expirada",
-            detail: "A sessão de 30 minutos expirou. Registre uma nova consulta para ver a ficha.",
+            detail: `O tempo de ${CONSULTA_SESSAO_MINUTOS} minutos da consulta terminou. Faça uma nova consulta para ver a ficha.`,
           },
           410,
         );

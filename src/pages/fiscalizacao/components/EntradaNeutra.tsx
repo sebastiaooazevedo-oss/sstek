@@ -8,6 +8,8 @@ import {
   registrarConsultaExterna,
   termoConsultaPadrao,
 } from "@/pages/fiscalizacao/consultaTermo";
+import { CONSULTA_SESSAO_MINUTOS, CONSULTA_SESSAO_MS } from "@shared/consulta";
+import { useAuth } from "@/pages/app/auth/authProvider";
 import FichaAutorizada from "@/pages/fiscalizacao/components/FichaAutorizada";
 import SessaoEncerrada from "@/pages/fiscalizacao/components/SessaoEncerrada";
 import VoltarQrCodes from "@/pages/fiscalizacao/components/VoltarQrCodes";
@@ -24,7 +26,8 @@ import type { FichaSstData } from "@/pages/fiscalizacao/types";
  *   porque a rastreabilidade de quem consultou deixaria de valer.
  * - O aceite do termo de tratamento de dados (LGPD) é obrigatório. O texto vem
  *   do servidor (Parametrização da empresa), então vale para todos os visitantes.
- * - A consulta é registrada no banco e abre uma SESSÃO autorizada de 30 minutos.
+ * - A consulta é registrada no banco e abre uma SESSÃO autorizada de 5 minutos,
+ *   encerrada automaticamente ao fim do tempo.
  *   A ficha resumida só é exibida com essa sessão validada no servidor.
  */
 
@@ -69,9 +72,17 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
   const [token, setToken] = useState<string | null>(null);
   const [dadosFicha, setDadosFicha] = useState<FichaSstData | null>(null);
   const [expiraEm, setExpiraEm] = useState("");
+  /** Expiração informada ao abrir a sessão (reserva caso a ficha não traga a dela). */
+  const [expiraSessao, setExpiraSessao] = useState("");
   const [abrindoFicha, setAbrindoFicha] = useState(false);
   const [erroFicha, setErroFicha] = useState<string | null>(null);
-  const [encerrada, setEncerrada] = useState<{ protocolo: string; em: Date; empresa: string } | null>(null);
+  const [encerrada, setEncerrada] = useState<{
+    protocolo: string;
+    em: Date;
+    empresa: string;
+    motivo: "manual" | "expirada";
+  } | null>(null);
+  const { userId } = useAuth();
 
   useEffect(() => {
     let ativo = true;
@@ -93,7 +104,7 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
   const podeEnviar =
     !enviando && nome.trim().length > 2 && orgao.trim().length > 1 && cpfValido && termoAceito;
 
-  const abrirFicha = async (sessaoToken: string) => {
+  const abrirFicha = async (sessaoToken: string, reserva: string = expiraSessao) => {
     setAbrindoFicha(true);
     setErroFicha(null);
     const resultado = await abrirFichaConsulta(sessaoToken);
@@ -103,7 +114,9 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
       return;
     }
     setDadosFicha(resultado.dados);
-    setExpiraEm(resultado.expiraEm || "");
+    // Ordem de preferência: expiração da ficha → da sessão → 5 min a partir de agora.
+    // Assim o encerramento automático acontece mesmo se o servidor não informar.
+    setExpiraEm(resultado.expiraEm || reserva || new Date(Date.now() + CONSULTA_SESSAO_MS).toISOString());
   };
 
   const enviar = async () => {
@@ -141,7 +154,8 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
     });
     if (resultado.sessao?.token) {
       setToken(resultado.sessao.token);
-      await abrirFicha(resultado.sessao.token);
+      setExpiraSessao(resultado.sessao.expiraEm || "");
+      await abrirFicha(resultado.sessao.token, resultado.sessao.expiraEm || "");
     }
   };
 
@@ -158,8 +172,13 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
   };
 
   /** Revoga a sessão no servidor e mostra a página de sessão encerrada. */
-  const encerrar = async () => {
-    const resumo = { protocolo: registro?.protocolo ?? "", em: new Date(), empresa: dadosFicha?.empresa.nome ?? "" };
+  const encerrar = async (motivo: "manual" | "expirada" = "manual") => {
+    const resumo = {
+      protocolo: registro?.protocolo ?? "",
+      em: new Date(),
+      empresa: dadosFicha?.empresa.nome ?? "",
+      motivo,
+    };
     if (token) await encerrarConsultaSessao(token);
     setToken(null);
     setDadosFicha(null);
@@ -167,12 +186,22 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
     setEncerrada(resumo);
   };
 
+  // Encerramento automático ao fim do tempo da sessão (o servidor também recusa depois disso).
+  useEffect(() => {
+    if (!token || !dadosFicha || !expiraEm) return;
+    const restante = new Date(expiraEm).getTime() - Date.now();
+    const timer = window.setTimeout(() => void encerrar("expirada"), Math.max(0, restante));
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, dadosFicha, expiraEm]);
+
   if (encerrada) {
     return (
       <SessaoEncerrada
         protocolo={encerrada.protocolo}
         encerradaEm={encerrada.em}
         empresaNome={encerrada.empresa}
+        motivo={encerrada.motivo}
         onNovaConsulta={novaConsulta}
       />
     );
@@ -214,7 +243,7 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
               <i className="ri-lock-2-line"></i>
               Área restrita
             </span>
-            <VoltarQrCodes />
+            {userId && <VoltarQrCodes />}
           </div>
         </div>
       </header>
@@ -488,7 +517,7 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
 
               <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="max-w-sm text-[10.5px] leading-relaxed text-foreground-400">
-                  A consulta é registrada com data e hora e libera a ficha resumida por 30 minutos. Tokens de acesso e
+                  A consulta é registrada com data e hora e libera a ficha resumida por {CONSULTA_SESSAO_MINUTOS} minutos. Tokens de acesso e
                   endereços completos não são gravados.
                 </p>
                 <button

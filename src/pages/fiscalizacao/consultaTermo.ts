@@ -10,7 +10,7 @@ import type { FichaSstData } from "@/pages/fiscalizacao/types";
  *
  * O fluxo completo tem três passos, todos validados no servidor:
  * 1. `contexto`  → termo vigente da empresa.
- * 2. `solicitar` → registra a consulta e abre uma sessão de 30 minutos.
+ * 2. `solicitar` → registra a consulta e abre uma sessão de 5 minutos.
  * 3. `ficha`     → a ficha resumida só é devolvida com um token de sessão
  *                  válido, não expirado e não encerrado.
  *
@@ -260,6 +260,6 @@ export async function encerrarConsultaSessao(token: string): Promise<void> {
       body: { acao: "encerrar", token },
     });
   } catch {
-    /* o servidor também expira a sessão em 30 minutos */
+    /* o servidor também expira a sessão em 5 minutos */
   }
 }

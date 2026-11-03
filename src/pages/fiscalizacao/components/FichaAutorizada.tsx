@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { CONSULTA_SESSAO_MINUTOS, tempoRestante } from "@shared/consulta";
 import FichaSst from "@/pages/fiscalizacao/components/FichaSst";
 import type { FichaSstData } from "@/pages/fiscalizacao/types";
 
@@ -6,7 +8,7 @@ import type { FichaSstData } from "@/pages/fiscalizacao/types";
  *
  * Só é renderizada depois que o servidor validou o token da sessão e devolveu
  * o resumo reduzido. O token fica em memória: sair da página, encerrar o
- * acesso ou esperar 30 minutos invalida a consulta.
+ * acesso ou esperar o tempo da sessão (5 minutos) invalida a consulta.
  */
 
 interface FichaAutorizadaProps {
@@ -46,6 +48,15 @@ export default function FichaAutorizada({
   onNovaConsulta,
   onEncerrar,
 }: FichaAutorizadaProps) {
+  // Relógio da contagem regressiva (o encerramento automático fica com quem abriu a ficha).
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgora(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const restante = tempoRestante(expiraEm, agora);
+  const ultimoMinuto = new Date(expiraEm).getTime() - agora <= 60000;
+
   return (
     <div className="flex min-h-screen flex-col bg-background-100">
       <header className="border-b border-background-200 bg-background-50">
@@ -77,8 +88,8 @@ export default function FichaAutorizada({
               <div>
                 <p className="text-[12.5px] font-bold text-primary-900">Consulta registrada e ficha liberada</p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-primary-900/85">
-                  Resumo reduzido, com dados pessoais mascarados. Esta liberação vale por 30 minutos e pode ser
-                  encerrada por você a qualquer momento.
+                  Resumo reduzido, com dados pessoais mascarados. Esta liberação vale por {CONSULTA_SESSAO_MINUTOS}{" "}
+                  minutos e se encerra sozinha ao fim do tempo. Você pode encerrar antes a qualquer momento.
                 </p>
               </div>
             </div>
@@ -91,9 +102,16 @@ export default function FichaAutorizada({
                 <dt className="text-[9px] font-bold uppercase tracking-wide text-foreground-400">Registrada em</dt>
                 <dd className="text-[12px] font-bold text-foreground-900">{formatDateTime(consultadoEm)}</dd>
               </div>
-              <div className="rounded-md border border-primary-200 bg-background-50 px-3 py-1.5">
-                <dt className="text-[9px] font-bold uppercase tracking-wide text-foreground-400">Válida até</dt>
-                <dd className="text-[12px] font-bold text-foreground-900">{formatTime(expiraEm)}</dd>
+              <div
+                className={`rounded-md border px-3 py-1.5 ${ultimoMinuto ? "border-accent-300 bg-accent-50" : "border-primary-200 bg-background-50"}`}
+                role="timer"
+                aria-live={ultimoMinuto ? "polite" : "off"}
+                aria-label={`Tempo restante da consulta: ${restante}`}
+              >
+                <dt className="text-[9px] font-bold uppercase tracking-wide text-foreground-400">Encerra em</dt>
+                <dd className={`font-mono text-[12px] font-bold tabular-nums ${ultimoMinuto ? "text-accent-900" : "text-foreground-900"}`}>
+                  {restante} <span className="font-sans text-[10px] font-semibold text-foreground-500">({formatTime(expiraEm)})</span>
+                </dd>
               </div>
             </dl>
           </div>

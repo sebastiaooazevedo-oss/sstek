@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import FichaSst from "@/pages/fiscalizacao/components/FichaSst";
 import EntradaNeutra from "@/pages/fiscalizacao/components/EntradaNeutra";
 import SessaoEncerrada from "@/pages/fiscalizacao/components/SessaoEncerrada";
+import { CONSULTA_SESSAO_MINUTOS, CONSULTA_SESSAO_MS } from "@shared/consulta";
 import type { FichaSstData } from "@/pages/fiscalizacao/types";
 import { fiscalizacaoModelo } from "@/mocks/fiscalizacaoModelo";
 
@@ -14,7 +15,7 @@ import { fiscalizacaoModelo } from "@/mocks/fiscalizacaoModelo";
  *    identifica e solicita acesso.
  * 2. FICHA RESUMIDA — só depois de uma sessão confirmada NO SERVIDOR. A
  *    consulta é registrada na Edge Function `fiscalizacao-consulta`, que abre
- *    uma sessão de 30 minutos e devolve o resumo reduzido validado.
+ *    uma sessão de 5 minutos (encerrada automaticamente) e devolve o resumo reduzido validado.
  *
  * O layout aprovado também é exibido em `/fiscalizacao/modelo` com dados
  * ilustrativos, sempre marcado como demonstração.
@@ -46,7 +47,7 @@ export default function FiscalizacaoPage() {
   const [acessoEncerrado, setAcessoEncerrado] = useState<Date | null>(null);
   const [consultaEm] = useState(() => new Date());
 
-  const sessaoValidaAte = useMemo(() => formatTime(new Date(consultaEm.getTime() + 30 * 60 * 1000)), [consultaEm]);
+  const sessaoValidaAte = useMemo(() => formatTime(new Date(consultaEm.getTime() + CONSULTA_SESSAO_MS)), [consultaEm]);
   const consultadoEm = useMemo(() => formatDateTime(consultaEm), [consultaEm]);
 
   if (!isModelo) {
@@ -113,7 +114,7 @@ export default function FiscalizacaoPage() {
 
         <p className="mt-4 text-center text-[10.5px] leading-relaxed text-foreground-400">
           Este é apenas o layout aprovado, com dados ilustrativos. A ficha real é liberada na consulta
-          pelo QR-Code, depois do registro da solicitação e da sessão autorizada de 30 minutos.
+          pelo QR-Code, depois do registro da solicitação e da sessão autorizada de {CONSULTA_SESSAO_MINUTOS} minutos.
         </p>
       </div>
     </div>
