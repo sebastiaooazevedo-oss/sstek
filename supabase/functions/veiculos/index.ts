@@ -7,6 +7,19 @@
 // Cliente SERVICE ROLE só executa banco/auditoria.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  MAX_CHECKIN_DAMAGES,
+  MAX_CHECKIN_REPAIRS,
+  fotosObrigatoriasFaltando,
+  placaConfere,
+  sanitizarAvaria,
+  sanitizarReparo,
+  transicaoReparoPermitida,
+  validarAvaria,
+  validarReparo,
+  type AvariaEntrada,
+  type ReparoEntrada,
+} from "../_shared/checkin.ts";
 
 function corsHeaders(): HeadersInit {
   return {
@@ -84,7 +97,7 @@ const MAX_ITEM_PHOTOS = 6;
 const EPC_STATUS_ACTIVE = "ativo";
 const CHECKIN_KINDS = ["entrega", "devolucao"];
 const CHECKIN_ITEM_RESULTS = ["conforme", "avaria"];
-const MAX_CHECKIN_PHOTOS = 6;
+const MAX_CHECKIN_PHOTOS = 8; // 5 obrigatórias (frente, traseira, laterais, painel) + 3 adicionais
 
 interface Access {
   role: string | null;
@@ -1675,7 +1688,7 @@ Deno.serve(async (req: Request) => {
       }
       const { data: vehicleRow } = await admin
         .from("vehicles")
-        .select("ref, plate, odometer, status")
+        .select("ref, plate, odometer, status, category")
         .eq("company_ref", companyRef)
         .eq("ref", vehicleRef)
         .maybeSingle();
@@ -1683,6 +1696,17 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ ok: false, error: "veiculo_nao_encontrado", detail: "Veículo não encontrado." }, 404);
       }
       const vehicle = vehicleRow as Record<string, unknown>;
+      // O condutor digita a placa do veículo à frente dele: evita check-in no veículo errado.
+      if (!placaConfere(text(checkin.plateTyped, 12), text(vehicle.plate, 12))) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: "placa_nao_confere",
+            detail: "A placa digitada não confere com o veículo escolhido. Confira a placa do veículo à sua frente.",
+          },
+          400,
+        );
+      }
       if (String(vehicle.status) === "inativo") {
         return jsonResponse(
           { ok: false, error: "veiculo_inativo", detail: "Veículo inativo não pode receber check-in." },
@@ -1737,13 +1761,54 @@ Deno.serve(async (req: Request) => {
       }
 
       const photos = stringList(checkin.photos, MAX_CHECKIN_PHOTOS);
-      if (photos.length === 0) {
+      const missingPhotos = fotosObrigatoriasFaltando(photos);
+      if (missingPhotos.length > 0) {
         return jsonResponse(
           {
             ok: false,
             error: "evidencia_obrigatoria",
-            detail: "O check-in exige pelo menos uma foto das condições do veículo.",
+            detail: `Faltam as fotos obrigatórias do check-in: ${missingPhotos.join(", ")}.`,
           },
+          400,
+        );
+      }
+
+      const rawDamages = Array.isArray(checkin.damages) ? (checkin.damages as AvariaEntrada[]) : [];
+      if (rawDamages.length > MAX_CHECKIN_DAMAGES) {
+        return jsonResponse(
+          { ok: false, error: "avarias_demais", detail: `O mapa aceita no máximo ${MAX_CHECKIN_DAMAGES} avarias.` },
+          400,
+        );
+      }
+      for (let index = 0; index < rawDamages.length; index += 1) {
+        const message = validarAvaria(rawDamages[index] ?? {}, index + 1);
+        if (message) return jsonResponse({ ok: false, error: "avaria_invalida", detail: message }, 400);
+      }
+      const damages = rawDamages.map((item, index) => sanitizarAvaria(item ?? {}, index));
+
+      const rawRepairs = Array.isArray(checkin.repairRequests) ? (checkin.repairRequests as ReparoEntrada[]) : [];
+      if (rawRepairs.length > MAX_CHECKIN_REPAIRS) {
+        return jsonResponse(
+          { ok: false, error: "reparos_demais", detail: `No máximo ${MAX_CHECKIN_REPAIRS} solicitações de reparo por check-in.` },
+          400,
+        );
+      }
+      for (let index = 0; index < rawRepairs.length; index += 1) {
+        const message = validarReparo(rawRepairs[index] ?? {}, index + 1);
+        if (message) return jsonResponse({ ok: false, error: "reparo_invalido", detail: message }, 400);
+      }
+      const repairRequests = rawRepairs.map((item, index) => sanitizarReparo(item ?? {}, index));
+
+      // Toda imagem precisa estar na pasta da própria empresa.
+      const allPaths = [
+        ...photos,
+        ...damages.map((item) => item.photo).filter(Boolean),
+        ...repairRequests.flatMap((item) => item.photos),
+      ];
+      const foreign = allPaths.find((path) => !path.startsWith(`${companyRef}/`));
+      if (foreign) {
+        return jsonResponse(
+          { ok: false, error: "foto_invalida", detail: "Uma das fotos não pertence a esta empresa. Envie a foto novamente." },
           400,
         );
       }
@@ -1900,6 +1965,10 @@ Deno.serve(async (req: Request) => {
         kind,
         status: kind === "entrega" ? "aberta" : "registrada",
         plate_snapshot: text(vehicle.plate, 20) || null,
+        vehicle_category: text(vehicle.category, 60) || null,
+        plate_confirmed: true,
+        damages,
+        repair_requests: repairRequests,
         responsible_name: responsibleName,
         responsible_document: responsibleDocument || null,
         responsible_role: responsibleRole || null,
@@ -1961,13 +2030,39 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      // Solicitações de reparo vão para o acompanhamento da gestão da frota.
+      let repairWarning = "";
+      if (repairRequests.length > 0) {
+        const { error: repairError } = await admin.from("vehicle_repair_requests").insert(
+          repairRequests.map((item, index) => ({
+            company_id: companyId,
+            company_ref: companyRef,
+            ref: `${checkinRef}-r${index + 1}`,
+            vehicle_ref: vehicleRef,
+            checkin_ref: checkinRef,
+            damage_id: item.damageId || null,
+            plate_snapshot: text(vehicle.plate, 20) || null,
+            title: item.title,
+            description: item.description || null,
+            priority: item.priority,
+            photos: item.photos,
+            requested_by: actorId,
+            requested_by_name: actorName,
+          })),
+        );
+        if (repairError) {
+          repairWarning = ` Atenção: o check-in foi gravado com os pedidos de reparo, mas o acompanhamento não foi criado (${repairError.message}).`;
+        }
+      }
+
       const avarias = items.filter((item) => item.result === "avaria");
+      const novasAvarias = damages.filter((item) => !item.preexisting).length;
       const auditError = await audit({
         action: kind === "entrega" ? "checked_out" : "checked_in",
         entity: "vehicle_checkins",
         entityId: checkinRef,
         oldValue: kind === "devolucao" ? String(openDelivery?.ref ?? "") : null,
-        newValue: `${kind} · ${odometer} km · ${fuelLevel}% · ${avarias.length} avaria(s)`,
+        newValue: `${kind} · ${odometer} km · ${fuelLevel}% · ${avarias.length} item(ns) com problema · ${novasAvarias} avaria(s) no mapa · ${repairRequests.length} reparo(s)`,
         detail:
           kind === "entrega"
             ? `Checklist de retirada do veículo ${String(vehicle.plate)}: ${responsibleName} assumiu o veículo como condutor responsável. Conferido por ${conferenteName}. Hodômetro ${odometer} km, tanque ${fuelLevel}%. ${photos.length} foto(s), ${avarias.length} avaria(s).`
@@ -1979,13 +2074,74 @@ Deno.serve(async (req: Request) => {
         ref: checkinRef,
         kind,
         responsavel: responsibleName,
-        avarias: avarias.length,
+        avarias: avarias.length + novasAvarias,
+        reparos: repairRequests.length,
         auditoria: !auditError,
         detail:
-          kind === "entrega"
+          (kind === "entrega"
             ? `Retirada registrada. ${responsibleName} é o condutor responsável do veículo a partir de agora.`
-            : "Devolução registrada. O veículo voltou para a empresa e ficou sem condutor responsável.",
+            : "Devolução registrada. O veículo voltou para a empresa e ficou sem condutor responsável.") + repairWarning,
       });
+    }
+
+    if (acao === "atualizar_reparo") {
+      if (!can(access, "vehicles.edit")) return deny("vehicles.edit");
+      const reparo = (payload?.reparo ?? {}) as Record<string, unknown>;
+      const ref = text(reparo.ref, 80);
+      const status = text(reparo.status, 20);
+      const resolution = text(reparo.resolution, 1000);
+      if (!ref) return jsonResponse({ ok: false, error: "reparo_obrigatorio", detail: "Informe o reparo." }, 400);
+      const { data: row } = await admin
+        .from("vehicle_repair_requests")
+        .select("ref, status, title, plate_snapshot")
+        .eq("company_ref", companyRef)
+        .eq("ref", ref)
+        .maybeSingle();
+      if (!row) return jsonResponse({ ok: false, error: "reparo_nao_encontrado", detail: "Solicitação de reparo não encontrada." }, 404);
+      const current = row as Record<string, unknown>;
+      if (!transicaoReparoPermitida(String(current.status), status)) {
+        return jsonResponse(
+          { ok: false, error: "transicao_invalida", detail: `Não é possível mudar de "${String(current.status)}" para "${status}".` },
+          409,
+        );
+      }
+      const closing = status === "concluida" || status === "cancelada";
+      if (closing && resolution.length < 5) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: "resolucao_obrigatoria",
+            detail: status === "concluida" ? "Descreva o que foi feito no reparo." : "Informe o motivo do cancelamento.",
+          },
+          400,
+        );
+      }
+      const { error: updateError } = await admin
+        .from("vehicle_repair_requests")
+        .update({
+          status,
+          resolution: resolution || null,
+          resolved_by_name: closing ? actorName : null,
+          resolved_at: closing ? new Date().toISOString() : null,
+        })
+        .eq("company_ref", companyRef)
+        .eq("ref", ref);
+      if (updateError) return jsonResponse({ ok: false, error: "gravacao_falhou", detail: updateError.message }, 500);
+      const auditError = await audit({
+        action: "repair_status",
+        entity: "vehicle_repair_requests",
+        entityId: ref,
+        oldValue: String(current.status),
+        newValue: status,
+        detail: `Reparo "${String(current.title)}" do veículo ${String(current.plate_snapshot ?? "")}: ${String(current.status)} → ${status}.${resolution ? ` ${resolution}` : ""}`,
+      });
+      const labels: Record<string, string> = {
+        aberta: "Reparo reaberto.",
+        em_andamento: "Reparo em andamento.",
+        concluida: "Reparo concluído.",
+        cancelada: "Reparo cancelado.",
+      };
+      return jsonResponse({ ok: true, ref, status, auditoria: !auditError, detail: labels[status] ?? "Reparo atualizado." });
     }
 
     /* ------------------------- 12. Limpeza da frota de demonstração ------------------------- */

@@ -20,3 +20,11 @@ create table if not exists public.company_domains (
   dns_status text not null default 'pending', https_status text not null default 'pending',
   dns_checked_at timestamptz, notes text, created_at timestamptz default now(), updated_at timestamptz default now()
 );
+create table if not exists public.vehicle_checkins (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid references public.companies(id), company_ref text not null, ref text not null,
+  vehicle_ref text not null, kind text not null, status text not null, plate_snapshot text,
+  responsible_name text, conferente_name text, odometer integer, fuel_level integer,
+  items jsonb default '[]'::jsonb, photos jsonb default '[]'::jsonb, notes text, linked_ref text,
+  performed_by uuid, performed_by_name text, performed_at timestamptz default now(), closed_at timestamptz
+);

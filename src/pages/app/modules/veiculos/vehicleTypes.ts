@@ -272,12 +272,88 @@ export interface CheckinItem {
  * condutor responsável — o histórico aponta quem devolveu e quem conferiu.
  * Os dois exigem dupla conferência (condutor + conferente da empresa).
  */
+/* --------------------- Avarias e solicitações de reparo --------------------- */
+
+export type DamageType = "risco" | "amassado" | "quebrado" | "trincado" | "faltante" | "desgaste" | "outro";
+export type DamageSeverity = "leve" | "moderada" | "grave";
+
+/** Avaria marcada no mapa do veículo durante o check-in. */
+export interface CheckinDamage {
+  id: string;
+  /** Área do desenho (ex.: `porta_de`, `para_choque_tras`). */
+  zone: string;
+  zoneLabel: string;
+  type: DamageType;
+  severity: DamageSeverity;
+  description: string;
+  /** Caminho da foto da avaria no armazenamento. */
+  photo: string;
+  /** Avaria que já existia no check-in anterior (só confirmada agora). */
+  preexisting: boolean;
+  /** Gerou solicitação de reparo. */
+  repair: boolean;
+}
+
+export type RepairPriority = "baixa" | "media" | "alta" | "urgente";
+export type RepairStatus = "aberta" | "em_andamento" | "concluida" | "cancelada";
+
+/** Pedido de reparo informado no check-in (o que precisa ser consertado, com foto). */
+export interface CheckinRepairRequest {
+  id: string;
+  title: string;
+  description: string;
+  priority: RepairPriority;
+  photos: string[];
+  /** Avaria de origem, quando o pedido veio do mapa. */
+  damageId: string;
+}
+
+/** Solicitação de reparo acompanhada pela gestão da frota (tabela própria). */
+export interface VehicleRepairRequest {
+  ref: string;
+  vehicleRef: string;
+  checkinRef: string;
+  /** Avaria do mapa que originou o pedido (vazio quando foi um pedido avulso). */
+  damageId: string;
+  plate: string;
+  title: string;
+  description: string;
+  priority: RepairPriority;
+  photos: string[];
+  status: RepairStatus;
+  requestedByName: string;
+  requestedAt: string;
+  resolution: string;
+  resolvedByName: string;
+  resolvedAt: string | null;
+}
+
+export const repairPriorityMeta: Record<RepairPriority, { label: string; className: string }> = {
+  baixa: { label: "Baixa", className: "bg-background-200 text-foreground-700" },
+  media: { label: "Média", className: "bg-secondary-100 text-secondary-800" },
+  alta: { label: "Alta", className: "bg-accent-100 text-accent-800" },
+  urgente: { label: "Urgente", className: "bg-danger-100 text-danger-800" },
+};
+
+export const repairStatusMeta: Record<RepairStatus, { label: string; className: string; icon: string }> = {
+  aberta: { label: "Aberta", className: "bg-accent-100 text-accent-800", icon: "ri-time-line" },
+  em_andamento: { label: "Em andamento", className: "bg-secondary-100 text-secondary-800", icon: "ri-tools-line" },
+  concluida: { label: "Concluída", className: "bg-primary-100 text-primary-700", icon: "ri-checkbox-circle-line" },
+  cancelada: { label: "Cancelada", className: "bg-background-200 text-foreground-600", icon: "ri-close-circle-line" },
+};
+
 export interface VehicleCheckin {
   ref: string;
   vehicleRef: string;
   kind: CheckinKind;
   status: CheckinStatus;
   plateSnapshot: string;
+  /** Categoria do veículo no momento do check-in (define o desenho do mapa de avarias). */
+  vehicleCategory: string;
+  /** O condutor digitou a placa e ela conferiu com o cadastro. */
+  plateConfirmed: boolean;
+  damages: CheckinDamage[];
+  repairRequests: CheckinRepairRequest[];
   responsibleName: string;
   responsibleDocument: string;
   responsibleRole: string;

@@ -6,7 +6,13 @@ import type {
   CheckinItemResult,
   CheckinKind,
   CheckinStatus,
+  CheckinDamage,
+  CheckinRepairRequest,
   ChecklistCriticality,
+  DamageSeverity,
+  DamageType,
+  RepairPriority,
+  RepairStatus,
   ChecklistItem,
   ChecklistTemplate,
   EpcKind,
@@ -23,6 +29,7 @@ import type {
   VehicleEpcLink,
   VehicleInspection,
   VehicleOwnership,
+  VehicleRepairRequest,
   VehicleRequirement,
   VehicleStatus,
 } from "@/pages/app/modules/veiculos/vehicleTypes";
@@ -47,6 +54,8 @@ export interface VehiclesState {
   blocks: VehicleBlock[];
   epcLinks: VehicleEpcLink[];
   checkins: VehicleCheckin[];
+  /** Solicitações de reparo abertas nos check-ins (vazio enquanto a tabela não existir). */
+  repairRequests: VehicleRepairRequest[];
   epiSources: EpiSource[];
   companyId: string | null;
   loading: boolean;
@@ -76,6 +85,7 @@ let state: VehiclesState = {
   blocks: [],
   epcLinks: [],
   checkins: [],
+  repairRequests: [],
   epiSources: [],
   companyId: null,
   loading: false,
@@ -319,6 +329,67 @@ function mapCheckinItem(raw: unknown): CheckinItem {
   };
 }
 
+const DAMAGE_TYPES = ["risco", "amassado", "quebrado", "trincado", "faltante", "desgaste", "outro"];
+const SEVERITIES = ["leve", "moderada", "grave"];
+const PRIORITIES = ["baixa", "media", "alta", "urgente"];
+const REPAIR_STATUSES = ["aberta", "em_andamento", "concluida", "cancelada"];
+
+function pick<T extends string>(value: unknown, allowed: string[], fallback: T): T {
+  const v = str(value);
+  return (allowed.includes(v) ? v : fallback) as T;
+}
+
+function strList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
+function mapDamage(raw: unknown): CheckinDamage {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: str(row.id),
+    zone: str(row.zone),
+    zoneLabel: str(row.zoneLabel ?? row.zone_label),
+    type: pick<DamageType>(row.type, DAMAGE_TYPES, "outro"),
+    severity: pick<DamageSeverity>(row.severity, SEVERITIES, "leve"),
+    description: str(row.description),
+    photo: str(row.photo),
+    preexisting: row.preexisting === true,
+    repair: row.repair === true,
+  };
+}
+
+function mapCheckinRepair(raw: unknown): CheckinRepairRequest {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: str(row.id),
+    title: str(row.title),
+    description: str(row.description),
+    priority: pick<RepairPriority>(row.priority, PRIORITIES, "media"),
+    photos: strList(row.photos),
+    damageId: str(row.damageId ?? row.damage_id),
+  };
+}
+
+function mapRepairRequest(row: Record<string, unknown>): VehicleRepairRequest {
+  return {
+    ref: str(row.ref),
+    vehicleRef: str(row.vehicle_ref),
+    checkinRef: str(row.checkin_ref),
+    damageId: str(row.damage_id),
+    plate: str(row.plate_snapshot),
+    title: str(row.title),
+    description: str(row.description),
+    priority: pick<RepairPriority>(row.priority, PRIORITIES, "media"),
+    photos: strList(row.photos),
+    status: pick<RepairStatus>(row.status, REPAIR_STATUSES, "aberta"),
+    requestedByName: str(row.requested_by_name),
+    requestedAt: str(row.created_at),
+    resolution: str(row.resolution),
+    resolvedByName: str(row.resolved_by_name),
+    resolvedAt: row.resolved_at ? str(row.resolved_at) : null,
+  };
+}
+
 function mapCheckin(row: Record<string, unknown>): VehicleCheckin {
   const status = str(row.status);
   return {
@@ -327,6 +398,10 @@ function mapCheckin(row: Record<string, unknown>): VehicleCheckin {
     kind: (str(row.kind) === "devolucao" ? "devolucao" : "entrega") as CheckinKind,
     status: (status === "encerrada" || status === "registrada" ? status : "aberta") as CheckinStatus,
     plateSnapshot: str(row.plate_snapshot),
+    vehicleCategory: str(row.vehicle_category),
+    plateConfirmed: row.plate_confirmed === true,
+    damages: Array.isArray(row.damages) ? (row.damages as unknown[]).map(mapDamage) : [],
+    repairRequests: Array.isArray(row.repair_requests) ? (row.repair_requests as unknown[]).map(mapCheckinRepair) : [],
     responsibleName: str(row.responsible_name),
     responsibleDocument: str(row.responsible_document),
     responsibleRole: str(row.responsible_role),
@@ -381,7 +456,7 @@ async function resolveCompanyId(ref: string): Promise<string> {
 async function refresh(): Promise<void> {
   try {
     const companyId = state.companyId || (await resolveCompanyId(companyRef));
-    const [vehiclesRes, docsRes, reqRes, alertsRes, checklistsRes, inspectionsRes, findingsRes, blocksRes, epcRes, checkinsRes, epiRes] =
+    const [vehiclesRes, docsRes, reqRes, alertsRes, checklistsRes, inspectionsRes, findingsRes, blocksRes, epcRes, checkinsRes, epiRes, repairsRes] =
       await Promise.all([
         supabase.from("vehicles").select("*").eq("company_id", companyId).order("plate"),
         supabase
@@ -437,6 +512,12 @@ async function refresh(): Promise<void> {
           .eq("company_id", companyId)
           .order("delivery_date", { ascending: false })
           .limit(120),
+        supabase
+          .from("vehicle_repair_requests")
+          .select("*")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(500),
       ]);
     const firstError =
       vehiclesRes.error ||
@@ -462,6 +543,10 @@ async function refresh(): Promise<void> {
       blocks: (blocksRes.data ?? []).map((row) => mapBlock(row as Record<string, unknown>)),
       epcLinks: (epcRes.data ?? []).map((row) => mapEpcLink(row as Record<string, unknown>)),
       checkins: (checkinsRes.data ?? []).map((row) => mapCheckin(row as Record<string, unknown>)),
+      // Tabela nova: se ainda não existir no banco, o módulo continua funcionando sem a lista.
+      repairRequests: repairsRes.error
+        ? []
+        : (repairsRes.data ?? []).map((row) => mapRepairRequest(row as Record<string, unknown>)),
       epiSources: flattenEpiSources(epiRes.data ?? []),
       companyId,
       loading: false,
@@ -703,8 +788,22 @@ export async function registrarCheckin(checkin: {
   items: CheckinItem[];
   photos: string[];
   notes: string;
+  plateTyped?: string;
+  damages?: CheckinDamage[];
+  repairRequests?: CheckinRepairRequest[];
 }): Promise<VehicleApiResult> {
   const result = await callVeiculos("registrar_checkin", { checkin });
+  if (result.ok) await refresh();
+  return result;
+}
+
+/** Atualiza o andamento de uma solicitação de reparo (permissão de edição da frota). */
+export async function atualizarReparo(payload: {
+  ref: string;
+  status: RepairStatus;
+  resolution: string;
+}): Promise<VehicleApiResult> {
+  const result = await callVeiculos("atualizar_reparo", { reparo: payload });
   if (result.ok) await refresh();
   return result;
 }

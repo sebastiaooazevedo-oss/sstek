@@ -217,6 +217,12 @@ export const permissionCatalog: PermissionField[] = [
     group: "Operação",
   },
   {
+    key: "vehicles.checkinReport",
+    label: "Ver check-ins realizados",
+    description: "Painel de check-ins com filtros, exportação e acompanhamento dos reparos.",
+    group: "Operação",
+  },
+  {
     key: "tenant.cipa",
     label: "Gerenciar CIPA",
     description: "Comissões, eleições, atas, ações e inspeções.",
@@ -299,6 +305,7 @@ export function defaultRolePermissions(): RolePermissions {
     "vehicles.unblock",
     "vehicles.epc",
     "vehicles.checkin",
+    "vehicles.checkinReport",
     "tenant.cipa",
     "tenant.surveys",
     "tenant.mood",

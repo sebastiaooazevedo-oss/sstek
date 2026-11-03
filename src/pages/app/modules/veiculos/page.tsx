@@ -31,11 +31,12 @@ import RequirementModal from "@/pages/app/modules/veiculos/components/Requiremen
 import ChecklistTemplateModal from "@/pages/app/modules/veiculos/components/ChecklistTemplateModal";
 import InspectionRunModal from "@/pages/app/modules/veiculos/components/InspectionRunModal";
 import EpcLinkModal from "@/pages/app/modules/veiculos/components/EpcLinkModal";
-import CheckinModal from "@/pages/app/modules/veiculos/components/CheckinModal";
+import CheckinWizard from "@/pages/app/modules/veiculos/checkin/CheckinWizard";
+import CheckinReportPanel from "@/pages/app/modules/veiculos/checkin/CheckinReportPanel";
 import DemoDataModal from "@/pages/app/modules/veiculos/components/DemoDataModal";
 import VehicleDetailDrawer from "@/pages/app/modules/veiculos/components/VehicleDetailDrawer";
 
-type TabId = "frota" | "documentos" | "exigencias" | "inspecoes" | "epcs" | "custodia";
+type TabId = "frota" | "documentos" | "exigencias" | "inspecoes" | "epcs" | "custodia" | "registros";
 
 interface Toast {
   kind: "ok" | "err";
@@ -70,9 +71,15 @@ const tabs = [
   },
   {
     id: "custodia",
-    label: "Checklist de retirada",
-    icon: "ri-exchange-line",
-    description: "Retirada e devolução do veículo com condutor responsável",
+    label: "Check-in",
+    icon: "ri-key-2-line",
+    description: "Retirada e devolução com check-in de segurança",
+  },
+  {
+    id: "registros",
+    label: "Check-ins realizados",
+    icon: "ri-file-list-3-line",
+    description: "Histórico com filtros, exportação e reparos",
   },
 ];
 
@@ -139,6 +146,8 @@ export default function VeiculosPage() {
   const canManageEpc = can("vehicles.epc");
   const canUnblock = can("vehicles.unblock");
   const canCheckin = can("vehicles.checkin");
+  const canCheckinReport = can("vehicles.checkinReport");
+  const visibleTabs = tabs.filter((item) => item.id !== "registros" || canCheckinReport);
 
   useEffect(() => {
     if (!toast) return;
@@ -315,7 +324,7 @@ export default function VeiculosPage() {
         }
         tabs={{
           label: "Seções do módulo de veículos",
-          items: tabs,
+          items: visibleTabs,
           active: tab,
           onChange: (id) => setTab(id as TabId),
         }}
@@ -458,8 +467,22 @@ export default function VeiculosPage() {
             <CheckinsTab
               vehicles={state.vehicles}
               checkins={state.checkins}
+              repairs={state.repairRequests}
               canCheckin={canCheckin}
+              canReport={canCheckinReport}
+              currentUserName={session.name}
               onNew={openCheckin}
+              onOpenReport={() => setTab("registros")}
+            />
+          )}
+
+          {tab === "registros" && canCheckinReport && (
+            <CheckinReportPanel
+              vehicles={state.vehicles}
+              checkins={state.checkins}
+              repairs={state.repairRequests}
+              canManageRepairs={canEdit}
+              onToast={(kind, text) => setToast({ kind, text })}
             />
           )}
         </>
@@ -566,10 +589,11 @@ export default function VeiculosPage() {
         }}
       />
 
-      <CheckinModal
+      <CheckinWizard
         open={checkinOpen}
         vehicles={state.vehicles}
         checkins={state.checkins}
+        repairRequests={state.repairRequests}
         initialVehicleRef={checkinVehicleRef}
         initialKind={checkinKind}
         currentUserName={session.name}

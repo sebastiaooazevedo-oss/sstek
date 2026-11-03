@@ -13,5 +13,5 @@
     "paths": { "https://esm.sh/@supabase/supabase-js@2": ["node_modules/@supabase/supabase-js"] },
     "types": []
   },
-  "files": ["deno-shim.d.ts", "platform-admin/index.ts", "fiscalizacao-consulta/index.ts", "_shared/onboarding.ts", "_shared/consulta.ts"]
+  "files": ["deno-shim.d.ts", "platform-admin/index.ts", "fiscalizacao-consulta/index.ts", "_shared/onboarding.ts", "_shared/consulta.ts", "_shared/checkin.ts", "veiculos/index.ts"]
 }

@@ -203,6 +203,12 @@ export const permissionResources: PermissionResource[] = [
         description:
           "Registrar a entrega do veículo ao condutor e a devolução à empresa, com dupla conferência, hodômetro, combustível e fotos obrigatórias.",
       },
+      {
+        key: "vehicles.checkinReport",
+        label: "Ver check-ins realizados e reparos",
+        description:
+          "Consultar todos os check-ins de retirada e devolução com filtros por período, condutor e placa, exportar e acompanhar as solicitações de reparo.",
+      },
     ],
   },
   {
