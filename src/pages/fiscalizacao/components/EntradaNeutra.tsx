@@ -122,6 +122,15 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
       setErroEnvio(resultado.detalhe);
       return;
     }
+    // Sem protocolo o servidor não confirmou o registro: não dá para afirmar
+    // nada sobre o adesivo. Mostra falha e permite tentar de novo.
+    if (!resultado.protocolo) {
+      setErroEnvio(
+        resultado.detalhe ||
+          "O serviço não confirmou o registro da consulta. Nenhuma ficha foi aberta. Tente novamente em instantes."
+      );
+      return;
+    }
     setRegistro({
       protocolo: resultado.protocolo,
       registradoEm: resultado.registradoEm,
@@ -198,8 +207,8 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
           {registro ? (
             <div className="mt-6 rounded-lg border border-primary-300 bg-primary-50 px-4 py-4">
               <p className="flex items-center gap-2 text-sm font-bold text-primary-900">
-                <i className={erroFicha ? "ri-error-warning-line" : "ri-checkbox-circle-line"}></i>
-                {erroFicha ? "Consulta registrada — ficha não liberada" : "Abrindo a ficha autorizada"}
+                <i className={erroFicha || (!token && !abrindoFicha) ? "ri-error-warning-line" : "ri-checkbox-circle-line"}></i>
+                {erroFicha || (!token && !abrindoFicha) ? "Consulta registrada — ficha não liberada" : "Abrindo a ficha autorizada"}
               </p>
               <p className="mt-1.5 text-xs leading-relaxed text-primary-900/90">
                 Sua consulta foi gravada com nome, órgão, CPF, finalidade e data/hora, junto com o aceite do termo de
@@ -238,13 +247,14 @@ export default function EntradaNeutra({ temCodigo, empresa, codigo }: EntradaNeu
                 </div>
               )}
 
-              {!abrindoFicha && !erroFicha && (
+              {!abrindoFicha && !erroFicha && !token && (
                 <div className="mt-3 rounded-md border border-accent-300 bg-accent-50 px-3 py-2.5">
                   <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-accent-900">
                     <i className="ri-information-line mt-0.5 shrink-0"></i>
                     <span>
-                      Este adesivo não está vinculado a um colaborador ativo desta empresa, então não há ficha a
-                      exibir. A solicitação ficou registrada com o protocolo acima.
+                      {/* O motivo vem do servidor (adesivo sem colaborador, sessão indisponível etc.). */}
+                      {registro.detalhe ||
+                        "A ficha não foi liberada para esta consulta. A solicitação ficou registrada com o protocolo acima."}
                     </span>
                   </p>
                 </div>
